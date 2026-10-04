@@ -1,0 +1,17 @@
+{
+  "name": "upwork-proposal-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome MV3 extension: user-initiated Upwork job scoring, AI proposal drafting and form pre-fill. Never submits.",
+  "scripts": {
+    "check": "node --check background.js && node --check popup.js && for f in bg/*.js shared/*.js page/*.js; do node --check \"$f\" || exit 1; done && echo syntax OK",
+    "test": "node --test tests/*.test.js",
+    "pretest": "npm run --silent check",
+    "zip": "rm -f ../upwork-proposal-assistant-v$npm_package_version.zip && zip -qr ../upwork-proposal-assistant-v$npm_package_version.zip . -x '.git/*' 'tests/*' '.github/*' 'node_modules/*' 'package-lock.json' '.gitignore' && echo built ../upwork-proposal-assistant-v$npm_package_version.zip"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  },
+  "engines": { "node": ">=20" }
+}
