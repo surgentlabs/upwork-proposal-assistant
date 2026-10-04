@@ -1,13 +1,20 @@
 // Works out which form field is which on the proposal page, from the field list pageAgent
-// returns (index, kind, label, placeholder). Pure. Label patterns are unverified against the
-// logged-in form until a capture confirms them — see NOTES.md "Form roles".
+// returns (index, kind, label, placeholder). Pure. Cover letter, hourly rate, "You'll receive" and
+// the boost bid are verified against a real capture (2026-10-04); screening questions and the
+// fixed-price bid are not yet — see NOTES.md "Form roles".
 
 const COVER_RE = /cover letter/i;
 const RATE_RE = /hourly rate|your rate|\bbid\b|bid amount|total price|total amount|amount you'?d like|rate\s*\(/i;
 const NOT_RATE_RE = /receive|service fee|fee\b|milestone|due date|connects/i;
+// The proposal page has a "Boost your proposal" bid in CONNECTS ("Bid 101 Connects or higher to
+// be ranked in 1st place.", placeholder "Connects" — verified 2026-10-04). Filling it spends
+// Connects, so it is never a fill target. pageAgent enforces the same rule.
+export const SPENDS_CONNECTS_RE = /connects?\b|boost|\brank(ed)?\b|1st place/i;
+const spendsConnects = f => f.kind === 'input' && SPENDS_CONNECTS_RE.test(`${f.label} ${f.placeholder}`);   // inputs only: a screening question may say "rank"
 const NOT_QUESTION_RE = /milestone|search|message|attachment|portfolio link/i;
 
-export function classifyFields(fields = []) {
+export function classifyFields(allFields = []) {
+  const fields = allFields.filter(f => !spendsConnects(f));
   const texts = fields.filter(f => f.kind === 'textarea' || f.kind === 'rich');
   let cover = texts.find(f => COVER_RE.test(f.label) || COVER_RE.test(f.placeholder));
   // No labelled cover letter: on a proposal page the first big text box is it.

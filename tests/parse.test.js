@@ -99,3 +99,22 @@ test('mergeJob keeps old values when the fresh read lacks them', () => {
   const m = mergeJob({ title: 'A', client: { totalSpent: 5, country: 'Spain' }, skills: ['x'] }, { title: '', client: { totalSpent: null, hires: 2 }, skills: [], connects: 8 });
   assert.deepEqual(m, { title: 'A', client: { totalSpent: 5, country: 'Spain', hires: 2 }, skills: ['x'], connects: 8 });
 });
+
+test('real proposal page (captured 2026-10-04): title, brief, category, Connects, profile rate — not the boost summary', () => {
+  const job = parseJobText({ url: 'https://www.upwork.com/nx/proposals/job/~022106883383762540293/apply/', title: 'Submit a proposal', mainText: fx('apply-real-2026-10-04.txt') });
+  assert.equal(job.title, 'Malware cleanup on several websites');
+  assert.equal(job.category, 'Web Design');
+  assert.equal(job.postedOn, 'Oct 5, 2026');
+  assert.equal(job.postedMinutesAgo, null);
+  assert.equal(job.description, 'Several client websites on shared hosting show a fake verification page.\nThe host\'s scanner flagged more sites. I need the fake page removed and all sites checked.');
+  assert.ok(!/Bid to boost|Connects/.test(job.description));
+  assert.equal(job.jobType, 'hourly');
+  assert.equal(job.hourlyMin, 10);
+  assert.equal(job.hourlyMax, 25);
+  assert.equal(job.experience, 'intermediate');
+  assert.equal(job.projectLength, 'Less than 1 month');
+  assert.equal(job.hoursPerWeek, 'Less than 30 hrs/week');
+  assert.equal(job.connects, 14);
+  assert.equal(job.connectsBalance, 46);              // "you'll have 32 remaining" is after paying 14
+  assert.equal(job.profileRate, 30);
+});

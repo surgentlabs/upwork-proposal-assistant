@@ -1,6 +1,7 @@
 // Popup (ES module). Talks to the worker by message; reads settings, jobs and the log from storage.
 import { SETTINGS_DEFAULTS, SETTINGS_KEYS, SECRET_KEYS, EXPORT_KEYS, FILTER_DEFAULTS, STATUSES, OUTCOME_STATUSES } from './shared/constants.js';
 import { fmtAge, currentAge } from './shared/score.js';
+import { checkKey } from './shared/keys.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -73,7 +74,7 @@ function jobMeta(job) {
   const age = currentAge(job);
   const pay = job.jobType === 'fixed' ? `Fixed${job.budget ? ` $${job.budget}` : ''}`
     : job.jobType === 'hourly' ? `Hourly${job.hourlyMin ? ` $${job.hourlyMin}–$${job.hourlyMax}` : ''}` : '';
-  return [pay, job.experience && job.experience[0].toUpperCase() + job.experience.slice(1), age != null && `posted ${fmtAge(age)} ago`,
+  return [pay, job.experience && job.experience[0].toUpperCase() + job.experience.slice(1), age != null ? `posted ${fmtAge(age)} ago` : job.postedOn && `posted ${job.postedOn}`,
     job.proposals && `${job.proposals} proposals`, job.interviewing != null && `${job.interviewing} interviewing`, job.connects != null && `${job.connects} Connects`]
     .filter(Boolean).join(' · ');
 }
@@ -277,6 +278,7 @@ async function loadSettings() {
     else if (typeof v === 'boolean') form.elements[`f_${k}`].checked = v;
     else form.elements[`f_${k}`].value = v || '';
   }
+  validateKeys({ geminiApiKey: form.elements.geminiApiKey.value, openrouterApiKey: form.elements.openrouterApiKey.value });   // flag a bad key that's already saved
 }
 
 function readSettingsForm() {
@@ -301,9 +303,27 @@ function readSettingsForm() {
   };
 }
 
+// Wrong-kind or malformed keys are caught here, next to the field, instead of as a confusing
+// 401 from the provider later. Returns false (and shows why) when a key can't be used.
+function validateKeys(s) {
+  const errs = [];
+  for (const [p, name] of [['gemini', 'geminiApiKey'], ['openrouter', 'openrouterApiKey']]) {
+    const { key, error } = checkKey(p, s[name]);
+    s[name] = key;
+    form.elements[name].value = key;
+    form.elements[name].classList.toggle('invalid', !!error);
+    if (error) errs.push(error);
+  }
+  const box = $('#key-error');
+  box.textContent = errs.join(' ');
+  box.hidden = !errs.length;
+  return !errs.length;
+}
+
 form.addEventListener('submit', async e => {
   e.preventDefault();
   const s = readSettingsForm();
+  if (!validateKeys(s)) { toast('Not saved — check the API key'); $('#key-error').scrollIntoView?.({ block: 'center' }); return; }
   const inSession = $('#session-keys').checked && !!chrome.storage.session;
   const secrets = Object.fromEntries(SECRET_KEYS.map(k => [k, s[k]]));
   if (inSession) {
@@ -321,9 +341,10 @@ form.addEventListener('submit', async e => {
 $('#test-ai').addEventListener('click', async () => {
   const s = readSettingsForm();
   const provider = s.aiProvider;
-  const key = provider === 'openrouter' ? s.openrouterApiKey : s.geminiApiKey;
   const out = $('#test-ai-out');
-  if (!key) { out.textContent = 'Enter a key first.'; return; }
+  if (!validateKeys(s)) { out.textContent = ''; return; }
+  const key = provider === 'openrouter' ? s.openrouterApiKey : s.geminiApiKey;
+  if (!key) { out.textContent = `Enter ${provider === 'openrouter' ? 'an OpenRouter' : 'a Gemini'} key first.`; return; }
   out.innerHTML = '<span class="spinner"></span>';
   const r = await send('TEST_AI', { provider, key, model: provider === 'openrouter' ? s.openrouterModel : s.geminiModel }).catch(e => ({ ok: false, error: e.message }));
   out.textContent = r.ok ? `Connected (${provider})` : r.error;

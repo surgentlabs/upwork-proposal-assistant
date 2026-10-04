@@ -121,7 +121,8 @@ export function scoreJob(job, cfg = {}, now = Date.now()) {
     if (!hit.length) add(-15, 'none of your skills mentioned');
     else add(Math.min(12, hit.length * 4), `matches ${hit.slice(0, 4).join(', ')}`);
   }
-  if (job.jobType === 'hourly' && cfg.hourlyRate > 0 && job.hourlyMax > 0 && cfg.hourlyRate > job.hourlyMax * 1.2) add(-6, `your rate is above their $${job.hourlyMax}/hr max`);
+  const myRate = cfg.hourlyRate || job.profileRate || 0;
+  if (job.jobType === 'hourly' && myRate > 0 && job.hourlyMax > 0 && myRate > job.hourlyMax * 1.2) add(-6, `your $${myRate}/hr is above their $${job.hourlyMax}/hr max`);
   if (job.connects > 16) add(-3, `${job.connects} Connects to apply`);
 
   const scams = scamSignals(job);

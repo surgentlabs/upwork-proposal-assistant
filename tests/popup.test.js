@@ -49,6 +49,16 @@ test('popup opens on a proposal page: drafts, fills, shows the result; settings 
   $('[name="hourlyRate"]').value = '50';
   $('[name="f_maxProposals"]').value = '5 to 10';
   $('[name="f_countriesExclude"]').value = 'IN, Pakistan';
+  // A Gemini key pasted into the OpenRouter field is refused next to the field, and nothing is saved.
+  $('[name="openrouterApiKey"]').value = 'AIzaSyWrongField';
+  $('#settings').dispatchEvent(new pop.window.Event('submit', { cancelable: true }));
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal($('#key-error').hidden, false);
+  assert.match($('#key-error').textContent, /isn't an OpenRouter key — it looks like a Google Gemini key/);
+  assert.ok($('[name="openrouterApiKey"]').classList.contains('invalid'));
+  assert.notEqual(env.store.hourlyRate, 50);
+  $('[name="openrouterApiKey"]').value = '';
+  assert.equal($('[name="geminiApiKey"]').type, 'text');                  // not a password field → no password-manager autofill
   $('#settings').dispatchEvent(new pop.window.Event('submit', { cancelable: true }));
   for (let i = 0; i < 50 && env.store.hourlyRate !== 50; i++) await new Promise(r => setTimeout(r, 20));
   assert.equal(env.store.hourlyRate, 50);

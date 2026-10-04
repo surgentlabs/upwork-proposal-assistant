@@ -1,5 +1,6 @@
 // Config loader: storage + session-only keys + defaults.
 import { SETTINGS_DEFAULTS, SETTINGS_KEYS, FILTER_DEFAULTS } from '../shared/constants.js';
+import { cleanKey } from '../shared/keys.js';
 
 export async function getConfig() {
   const [d, sess] = await Promise.all([
@@ -9,8 +10,8 @@ export async function getConfig() {
   const cfg = { ...SETTINGS_DEFAULTS };
   for (const k of SETTINGS_KEYS) if (d[k] !== undefined && d[k] !== null) cfg[k] = d[k];
   cfg.filters = { ...FILTER_DEFAULTS, ...(d.filters || {}) };
-  cfg.geminiApiKey = sess.geminiApiKey || cfg.geminiApiKey || '';         // a non-empty session key wins
-  cfg.openrouterApiKey = sess.openrouterApiKey || cfg.openrouterApiKey || '';
+  cfg.geminiApiKey = cleanKey(sess.geminiApiKey || cfg.geminiApiKey);       // a non-empty session key wins; "Bearer "/spaces stripped
+  cfg.openrouterApiKey = cleanKey(sess.openrouterApiKey || cfg.openrouterApiKey);
   cfg.hourlyRate = Number(cfg.hourlyRate) || 0;
   cfg.fixedBidRatio = Number(cfg.fixedBidRatio) || 1;
   cfg.minFixedBid = Number(cfg.minFixedBid) || 0;

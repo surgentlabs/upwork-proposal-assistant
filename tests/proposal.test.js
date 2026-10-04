@@ -75,3 +75,8 @@ test('brief questions and quality notes', () => {
   assert.deepEqual(extractBriefQuestions('Intro.\nWhen applying, answer these:\n1. Your stack?\n2. Your timeline?\nThanks'), ['When applying, answer these:', 'Your stack?', 'Your timeline?']);
   assert.equal(qualityNotes('one two three').words, 3);
 });
+
+test('hourly rate falls back to the profile rate shown on the proposal page', () => {
+  assert.deepEqual(decideRate({ jobType: 'hourly', profileRate: 30 }, { ...cfg, hourlyRate: 0 }), { rate: 30, unit: 'hourly' });
+  assert.deepEqual(decideRate({ jobType: 'hourly', profileRate: 30 }, cfg), { rate: 45, unit: 'hourly' });   // Settings wins
+});

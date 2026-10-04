@@ -64,6 +64,12 @@
   textarea { resize: vertical; line-height: 1.45; }
   textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-dim); border-color: var(--accent); }
   label.field { display: block; margin-bottom: 9px; }
+  /* Masked like a password, but a plain text input so Chrome's password manager never autofills a
+     saved password into an API-key field. */
+  input.secret { -webkit-text-security: disc; font-family: var(--mono); }
+  input.secret:focus { -webkit-text-security: none; }
+  input.invalid { border-color: var(--bad); }
+  [hidden] { display: none !important; }
   label.field > span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
   label.check { display: flex; gap: 7px; align-items: flex-start; margin-bottom: 7px; cursor: pointer; }
   label.check input { margin-top: 2px; }
@@ -131,11 +137,12 @@
           <select name="aiProvider"><option value="gemini">Google Gemini</option><option value="openrouter">OpenRouter</option></select>
         </label>
         <div class="grid2">
-          <label class="field"><span>Gemini API key</span><input type="password" name="geminiApiKey"></label>
+          <label class="field"><span>Gemini API key</span><input type="text" class="secret" name="geminiApiKey" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
           <label class="field"><span>Gemini model</span><input type="text" name="geminiModel"></label>
-          <label class="field"><span>OpenRouter API key</span><input type="password" name="openrouterApiKey"></label>
+          <label class="field"><span>OpenRouter API key</span><input type="text" class="secret" name="openrouterApiKey" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-…"></label>
           <label class="field"><span>OpenRouter model</span><input type="text" name="openrouterModel"></label>
         </div>
+        <div class="banner bad small" id="key-error" hidden></div>
         <label class="check"><input type="checkbox" id="session-keys"> <span>Keep keys for this browser session only (forgotten when Chrome closes)</span></label>
         <div class="row"><button type="button" class="btn small" id="test-ai">Test connection</button><span class="small muted" id="test-ai-out"></span></div>
       </div>

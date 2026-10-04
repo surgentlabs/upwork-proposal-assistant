@@ -1,5 +1,104 @@
 # Upwork Proposal Assistant — Design Notes (newest first)
 
+## v0.1.2 — First real capture: logged-in proposal page (hourly job, no screening questions)
+The user sent a v0.1.0 snapshot of `/nx/proposals/job/~…/apply/`. It's saved as
+`tests/fixtures/apply-real-2026-10-04.{txt,html}`, with the client's brief replaced by neutral
+text.
+
+**Verified:**
+- the `<h1>` is "Submit a proposal";
+- the job sits under "Job details": the title line, then "<Category> Posted Oct 5, 2026", then
+  the brief ending in "less" / "More/Less about" / "View job posting";
+- value-then-label pairs: `Intermediate`/`Experience level`, `$10.00 - $25.00`/`Hourly range`,
+  `Less than 30 hrs/week`/`Hourly`, `Less than a month`/`Project length`;
+- "This proposal requires 14 Connects", and "When you submit this proposal, you'll have 32
+  Connects remaining." (the balance after paying);
+- "Your profile rate: $30.00/hr" and "Client's budget: …";
+- fields:
+  - `Hourly rate` (input, value "$30"), `You'll receive` (input), `Cover Letter` (textarea,
+    "4019 characters left");
+  - **"Bid 101 Connects or higher to be ranked in 1st place."** (input, placeholder "Connects"):
+    the *Boost your proposal* auction;
+- no duration control on this hourly job, and no description `data-test` hook;
+- the boost section ends with a "Summary" block ("Bid to boost / Required for proposal / Total /
+  Send for 14 Connects").
+
+**Bugs it exposed, now fixed:**
+1. The title was taken from the `<h1>` ("Submit a proposal"). `jobDetails()` now reads the line
+   after "Job details", plus the category and brief.
+2. The description fell back to the text under "Summary", which here was the boost summary. The
+   fallback now refuses a "Summary" followed by "Bid to boost", and the proposal-page brief comes
+   from `jobDetails()`.
+3. The Connects balance read 32. It is now the remaining figure plus the cost, which is 46.
+4. "Less than a month" wasn't recognised; it's normalised to "Less than 1 month". "Posted Oct 5,
+   2026" is kept as `postedOn` and shown when there's no relative age.
+5. With no rate in Settings, nothing was bid. `decideRate` now falls back to `job.profileRate`
+   read off the page, and the score's "rate above their max" check uses it too.
+6. **Boost bid safety.** v0.1.0 skipped the field only because its rate-exclusion list happened
+   to include "connects". Now:
+   - `classifyFields` drops any input matching `SPENDS_CONNECTS_RE` (`connects?|boost|rank(ed)|1st
+     place`) before assigning roles;
+   - `pageAgent('fill')` independently refuses any such input with "refused: Connects / boost
+     field", even if asked;
+   - it's inputs only, so a screening question that says "rank" still counts.
+
+**Still unverified:**
+- **screening-question fields:** this job had none, so the next capture should be from a job
+  that has them;
+- **the fixed-price "Bid" field and the milestone / "By project" choice;**
+- **whether Upwork's currency-masked rate input accepts a value set programmatically:** check
+  that "You'll receive" updates after a fill;
+- **the logged-in job page:** client card, posted-ago, screening-question list.
+
+**Tests:** 43. New: real-page parse; boost never classified, and refused even when targeted;
+"rank" questions kept; the profile-rate fallback; and end to end, the real page straight away
+with no Settings rate, checking the real title and brief reach the AI and the boost stays empty.
+
+## v0.1.1 — "OpenRouter: Missing Authentication header"
+Report: drafting or testing showed `OpenRouter: Missing Authentication header`.
+
+**Diagnosis.** We probed OpenRouter directly on 2026-10-05. It returns that exact message for any
+bearer token that isn't an OpenRouter key:
+
+- an empty token, `Bearer Bearer …`, a Gemini `AIza…` key or an Anthropic `sk-ant-…` key all get
+  "Missing Authentication header";
+- a well-formed but wrong `sk-or-v1-…` key gets "User not found.";
+- no header at all gets "No cookie auth credentials found".
+
+So the extension did send the header, but the OpenRouter field held something that wasn't an
+OpenRouter key. v0.1.0 never checked the key's shape. Plausible ways in:
+
+1. a key pasted into the wrong field;
+2. Chrome's password manager autofilling a saved password into the `type="password"` key
+   inputs (Chrome ignores `autocomplete="off"` on password fields);
+3. the Gemini → OpenRouter fallback, when Gemini is rate limited.
+
+**Fix:**
+- **`shared/keys.js`:**
+  - `cleanKey` strips a pasted `Bearer ` / `Authorization:` prefix, quotes and whitespace;
+  - `keyKind` recognises `sk-or-`, `AIza`, `sk-ant-` and `sk-`;
+  - `checkKey(provider, key)` says what's wrong. OpenRouter must be `sk-or-…`. Gemini rejects
+    only *recognisably other* providers' keys, because Google may add formats.
+- **Popup:**
+  - Save and Test connection validate the keys and show the problem next to the fields;
+  - nothing is saved while a key is wrong;
+  - an already-saved bad key is flagged when Settings opens;
+  - the key inputs are now plain text inputs masked with `-webkit-text-security`, unmasked on
+    focus, so the password manager ignores them.
+- **Worker:**
+  - `getConfig` cleans stored keys;
+  - `resolveProvider` treats a wrong-kind key as missing, so it is never sent; it logs why and
+    falls through to the other provider or the template;
+  - 401 replies (and Gemini's 400/403 "API key" errors) become "OpenRouter rejected the key (…)
+    — check Settings → OpenRouter API key; it should start with "sk-or-v1-"" with reason
+    `auth`.
+- **Tests:** 39, four new:
+  - key normalisation and kinds;
+  - the worker never sends a Gemini key to OpenRouter and uses Gemini instead;
+  - a wrong-kind-only key gives the template with no request;
+  - "Bearer " isn't doubled, and a 401 gets the plain message;
+  - the popup refuses to save a wrong-kind key and the key inputs aren't password fields.
+
 ## v0.1.0 — Assisted, on-click workflow; scoring, drafting and optional form auto-fill
 
 ### Why this isn't the hand-off's "scanner → queue" design
@@ -105,7 +204,7 @@ The fixture `tests/fixtures/public-job.txt` mirrors this layout:
 - **Job ids:** `~0…` in all URL shapes (`/jobs/~…`, `/freelance-jobs/apply/…_~…`,
   `/nx/find-work/…/details/~…`, `/ab|nx/proposals/job/~…/apply/`).
 
-### Form roles: unverified
+### Form roles (v0.1.0 — see v0.1.2 for what a real capture confirmed)
 `classifyFields` is checked against `tests/fixtures/apply-page.html`, which is assumed, not
 captured. The rules:
 

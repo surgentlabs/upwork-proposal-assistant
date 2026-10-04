@@ -105,6 +105,10 @@ export function pageAgent(action, payload) {
     };
     const els = fieldEls();
     const results = [];
+    // Hard guard: never touch a field about Connects / boosting / ranking — the proposal page's
+    // "Boost your proposal" bid spends Connects. Same rule as SPENDS_CONNECTS_RE in shared/form.js
+    // (duplicated because this function must be self-contained).
+    const spendsConnects = el => el.tagName === 'INPUT' && /connects?\b|boost|\brank(ed)?\b|1st place/i.test(`${labelOf(el)} ${el.getAttribute('placeholder') || ''}`);
     for (const item of (payload && payload.items) || []) {
       let el = els[item.index];
       // The page may have re-rendered since it was read: confirm the label, else find it by label.
@@ -112,6 +116,7 @@ export function pageAgent(action, payload) {
         el = item.label ? els.find(x => clean(labelOf(x)) === clean(item.label)) : null;
       }
       if (!el) { results.push({ index: item.index, role: item.role, ok: false, reason: 'field not found' }); continue; }
+      if (spendsConnects(el)) { results.push({ index: item.index, role: item.role, ok: false, reason: 'refused: Connects / boost field' }); continue; }
       const current = clean(el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : textOf(el));
       if (current && !item.overwrite) { results.push({ index: item.index, role: item.role, ok: false, reason: 'already has text' }); continue; }
       let value = String(item.value ?? '');

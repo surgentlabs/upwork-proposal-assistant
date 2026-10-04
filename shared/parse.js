@@ -78,6 +78,8 @@ export function parseJobText(read) {
 
   // ── Job ──
   job.postedMinutesAgo = parsePostedMinutes(raw);
+  const pon = raw.match(/Posted\s+(?:on\s+)?([A-Z][a-z]{2,8}\.?\s+\d{1,2},\s+\d{4})/);   // proposal page: "Web Design Posted Oct 5, 2026"
+  job.postedOn = pon ? pon[1] : null;
   const fixedM = first(raw, /\$([\d,]+(?:\.\d+)?)\s*\n\s*Fixed[- ]price/i, /Fixed[- ]price[^\n$]{0,30}\$([\d,]+(?:\.\d+)?)/i, /Est\. budget:?\s*\$([\d,]+(?:\.\d+)?)/i);
   const hourlyM = first(raw, /\$([\d,]+(?:\.\d+)?)\s*[-–]\s*\$([\d,]+(?:\.\d+)?)\s*(?:\/\s*hr)?\s*\n?\s*Hourly/i, /\$([\d,]+(?:\.\d+)?)\s*[-–]\s*\$([\d,]+(?:\.\d+)?)\s*\/\s*hr/i, /Hourly:\s*\$([\d,]+(?:\.\d+)?)\s*[-–]\s*\$([\d,]+(?:\.\d+)?)/i);
   const hasFixed = fixedM || ls.some(l => /^fixed[- ]price$/i.test(l));
@@ -88,8 +90,8 @@ export function parseJobText(read) {
   job.hourlyMax = hourlyM ? n(hourlyM[2]) : null;
   const exp = first(raw, /(Entry level|Intermediate|Expert)\s*\n\s*Experience level/i, /Experience level:?\s*\n?\s*(Entry level|Intermediate|Expert)/i);
   job.experience = exp ? exp[1].toLowerCase().replace(' level', '') : null;
-  const dur = first(raw, /(Less than 1 month|1 to 3 months|1-3 months|3 to 6 months|3-6 months|More than 6 months)/i);
-  job.projectLength = dur ? dur[1].replace('-', ' to ') : null;
+  const dur = first(raw, /(Less than (?:1|a) month|1 to 3 months|1-3 months|3 to 6 months|3-6 months|More than 6 months)/i);
+  job.projectLength = dur ? dur[1].replace('-', ' to ').replace(/less than a month/i, 'Less than 1 month') : null;
   const hrs = first(raw, /(Less than 30 hrs\/week|More than 30 hrs\/week|30\+ hrs\/week|Hours to be determined)/i);
   job.hoursPerWeek = hrs ? hrs[1] : null;
 
@@ -109,8 +111,14 @@ export function parseJobText(read) {
   // ── Connects ── (unverified wording; logged-in pages only)
   const cr = first(raw, /Send a proposal for:?\s*(\d+)\s*Connects?/i, /requires?\s*:?\s*(\d+)\s*Connects?/i, /(\d+)\s*Connects?\s*(?:required|to apply|to submit)/i);
   job.connects = cr ? Number(cr[1]) : null;
-  const ca = first(raw, /Available Connects:?\s*(\d+)/i, /You have\s*(\d+)\s*Connects?/i, /(\d+)\s*Connects?\s*(?:available|remaining|left)/i);
-  job.connectsBalance = ca ? Number(ca[1]) : null;
+  // Proposal page (verified 2026-10-04): "When you submit this proposal, you'll have 32 Connects
+  // remaining." — that's AFTER paying, so the balance now is that + the cost.
+  const after = raw.match(/you'?ll have\s*(\d+)\s*Connects?\s*remaining/i);
+  const ca = first(raw, /Available Connects:?\s*(\d+)/i, /You have\s*(\d+)\s*Connects?/i);
+  job.connectsBalance = after ? Number(after[1]) + (job.connects || 0) : ca ? Number(ca[1]) : null;
+  // Your own profile rate, shown on the proposal page ("Your profile rate: $30.00/hr").
+  const pr = raw.match(/Your profile rate:?\s*\$([\d,]+(?:\.\d+)?)/i);
+  job.profileRate = pr ? n(pr[1]) : null;
 
   // ── Client ── (only "Member since" and the country are visible logged-out — verified; the
   // rest is the logged-in "About the client" card, unverified until a capture confirms it)
@@ -148,13 +156,37 @@ export function parseJobText(read) {
     .filter(l => l.length <= 60 && !/^(Mandatory|Nice-to-have)/i.test(l) && !/^\+\d+$/.test(l));
   job.questions = sectionLines(ls, /You will be asked to answer the following questions/i, SECTION_STOP, 10)
     .map(l => l.replace(/^\d+[.)]\s*/, '').trim()).filter(l => l.length > 3);
-  job.description = (read?.description || '').trim() || descriptionFallback(ls);
+  // Proposal page (verified 2026-10-04): "Job details" / <title> / "<Category> Posted <date>" /
+  // the brief, ending with "less", "More/Less about" or "View job posting". The page <h1> is
+  // "Submit a proposal", not the job title.
+  const jd = jobDetails(ls);
+  if (jd) {
+    if (!job.title || /^submit a proposal$/i.test(job.title)) job.title = jd.title;
+    job.category = jd.category;
+  }
+  job.description = (read?.description || '').trim() || jd?.description || descriptionFallback(ls);
   return job;
+}
+
+function jobDetails(ls) {
+  const i = ls.findIndex(l => /^Job details$/i.test(l));
+  if (i < 0 || !ls[i + 1]) return null;
+  const title = ls[i + 1];
+  let j = i + 2, category = null;
+  const pm = (ls[j] || '').match(/^(.*?)\s*Posted\s/i);
+  if (pm) { category = pm[1].trim() || null; j++; }
+  const out = [];
+  for (const l of ls.slice(j)) {
+    if (/^(More\/Less about|View job posting|less|more)$/i.test(l) || /^(Entry level|Intermediate|Expert)$/i.test(l)) break;
+    out.push(l);
+  }
+  if (out.length) out[out.length - 1] = out[out.length - 1].replace(/\s+(less|more)$/i, '');
+  return { title, category, description: out.join('\n') };
 }
 
 function descriptionFallback(ls) {
   const i = ls.findIndex(l => /^Summary$/i.test(l));
-  if (i < 0) return '';
+  if (i < 0 || /^Bid to boost/i.test(ls[i + 1] || '')) return '';   // the proposal page's boost "Summary" is not a brief
   const stop = /^(Less than 30 hrs\/week|More than 30 hrs\/week|Hours to be determined|Hourly|Fixed[- ]price|\$[\d,.]+|Skills and Expertise|Activity on this job)$/i;
   const out = [];
   for (const l of ls.slice(i + 1)) { if (stop.test(l)) break; out.push(l); }

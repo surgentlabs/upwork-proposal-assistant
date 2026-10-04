@@ -117,6 +117,29 @@ test('straight to the proposal page: drafts with the form\'s questions and fills
   assert.ok(store.jobs[ID].fallbackText.length > 20);                                 // no description hook → page text for the AI
 });
 
+test('real proposal page straight away, no rate in Settings: real title and brief go to the AI, profile rate is used, boost untouched', async () => {
+  reset({ hourlyRate: 0 });
+  const RID = '~022106883383762540293';
+  const page = makePage(fx('apply-real-2026-10-04.html'), `https://www.upwork.com/nx/proposals/job/${RID}/apply/`);
+  // jsdom has no innerText layout, so feed the agent the real captured text for mainText.
+  const run = page.run;
+  page.run = (func, args) => { const r = run(func, args); if (args[0] === 'read') r.mainText = fx('apply-real-2026-10-04.txt'); return r; };
+  setPage(page);
+  const r = await message({ type: 'ASSIST', tabId: 7 });
+  assert.equal(r.ok, true, r.error);
+  const job = store.jobs[RID];
+  assert.equal(job.title, 'Malware cleanup on several websites');
+  assert.equal(job.url, `https://www.upwork.com/jobs/${RID}`);
+  const prompt = JSON.parse(fetchCalls[0].init.body).contents[0].parts[0].text;
+  assert.match(prompt, /Job title: Malware cleanup on several websites/);
+  assert.match(prompt, /Client's brief:\nSeveral client websites/);
+  assert.match(prompt, /Your rate: \$30\/hr/);
+  assert.ok(!/Bid to boost/.test(prompt));
+  assert.equal(page.doc.querySelector('[aria-label="Hourly rate"]').value, '30');
+  assert.equal(page.doc.querySelector('input[placeholder="Connects"]').value, '');
+  assert.match(page.doc.getElementById('cover-letter-area').value, /^Hi,/);
+});
+
 test('auto-fill off: the proposal page is read, nothing drafted or filled', async () => {
   reset({ autoFill: false }); const page = makePage(fx('apply-page.html'), APPLY_URL); setPage(page);
   const r = await message({ type: 'ASSIST', tabId: 7 });
@@ -149,6 +172,40 @@ test('AI failure or no key → template draft, logged', async () => {
   const d2 = await message({ type: 'DRAFT', jobId: ID });
   assert.equal(d2.result.draft.fell, 'no_key');
   assert.equal(fetchCalls.length, 0);
+});
+
+test('OpenRouter selected with a Gemini key in its field: never sent, explained, Gemini used instead', async () => {
+  reset({ aiProvider: 'openrouter', openrouterApiKey: 'AIzaSyWrongField', geminiApiKey: 'AIzaGood' }); setPage(makePage(fx('job-page.html'), JOB_URL));
+  await message({ type: 'ASSIST', tabId: 7 });
+  const d = await message({ type: 'DRAFT', jobId: ID });
+  assert.equal(d.result.draft.source, 'ai');
+  assert.equal(d.result.draft.provider, 'gemini');
+  assert.ok(fetchCalls.every(c => !c.url.includes('openrouter.ai')));
+  await settle();
+  assert.match(logText(), /\[warn\] Not using the OpenRouter key: That isn't an OpenRouter key — it looks like a Google Gemini key/);
+});
+
+test('only a wrong-kind key: template, no request; a rejected OpenRouter key gets a plain explanation', async () => {
+  reset({ aiProvider: 'openrouter', openrouterApiKey: 'AIzaSyWrongField', geminiApiKey: '' }); setPage(makePage(fx('job-page.html'), JOB_URL));
+  await message({ type: 'ASSIST', tabId: 7 });
+  const d = await message({ type: 'DRAFT', jobId: ID });
+  assert.equal(d.result.draft.fell, 'no_key');
+  assert.equal(fetchCalls.length, 0);
+  const t = await message({ type: 'TEST_AI', provider: 'openrouter', key: 'AIzaSyWrongField', model: 'x' });
+  assert.match(t.result.error, /isn't an OpenRouter key/);
+  assert.equal(fetchCalls.length, 0);
+
+  reset({ aiProvider: 'openrouter', openrouterApiKey: 'Bearer sk-or-v1-revoked', geminiApiKey: '' });
+  const prevFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { fetchCalls.push({ url, init }); return jsonRes({ error: { message: 'User not found.', code: 401 } }, 401); };
+  setPage(makePage(fx('job-page.html'), JOB_URL));
+  await message({ type: 'ASSIST', tabId: 7 });
+  const d2 = await message({ type: 'DRAFT', jobId: ID });
+  globalThis.fetch = prevFetch;
+  assert.equal(fetchCalls[0].init.headers.Authorization, 'Bearer sk-or-v1-revoked');   // "Bearer " pasted with the key isn't doubled
+  assert.equal(d2.result.draft.fell, 'auth');
+  await settle();
+  assert.match(logText(), /OpenRouter rejected the key \(User not found\.\) — check Settings → OpenRouter API key; it should start with "sk-or-v1-"/);
 });
 
 test('a raw-newline one-block reply is parsed, greeted and split', async () => {

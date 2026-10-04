@@ -62,6 +62,7 @@ export async function readTab(tabId) {
     if (fresh.postedMinutesAgo != null) fresh.postedAt = now - fresh.postedMinutesAgo * 60000;
     if (kind === 'apply' && old?.title) delete fresh.title;   // the proposal page's heading isn't the job title
     if (kind === 'apply') { delete fresh.url; fresh.applyUrl = read.url; }
+    if (!old?.url && !fresh.url) fresh.url = `https://www.upwork.com/jobs/${id}`;
     const rec = mergeJob(old || { id, status: 'read', firstReadAt: now }, fresh);
     if (!rec.description) rec.fallbackText = cutText(read.mainText).slice(0, 6000);
     if (form) rec.formQuestions = form.questions.map(q => q.text);

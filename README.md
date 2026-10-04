@@ -6,7 +6,7 @@ your own AI key writes the cover letter, the screening-question answers, the rat
 duration. On the proposal page it can **fill the form for you**. You review it and click
 **Submit** yourself.
 
-**Version:** 0.1.0
+**Version:** 0.1.2
 
 > **What it deliberately does not do.** It doesn't watch the job feed, run searches, refresh
 > pages, work in the background or submit anything. Upwork's
@@ -77,6 +77,7 @@ duration. On the proposal page it can **fill the form for you**. You review it a
 ### Safety
 - **Stops on a challenge or login page.** If Upwork shows "verify you are human", a CAPTCHA or a
   login wall, nothing is read or filled. It tells you and waits for you.
+- **Never spends Connects.** The proposal page's "Boost your proposal" bid (in Connects) is never filled. The page code refuses any input that mentions Connects, boost or rank.
 - **Never submits.** Tests assert that the page code never calls `click()` or `submit()`, and
   that the manifest has no Upwork host permission, alarms or content scripts.
 
@@ -112,7 +113,7 @@ statuses and the log. Data leaves the browser in exactly these cases:
 - **Upwork**: nothing. The extension makes no requests to Upwork. It only reads, and fills
   fields on, the page you clicked the icon on.
 
-API keys can be kept for the browser session only, and they're never included in settings
+API keys are checked for the right format before they're saved or used, and they can be kept for the browser session only, and they're never included in settings
 exports. The popup uses system fonts, so no third-party requests are made when it opens.
 
 ## Development
@@ -139,4 +140,6 @@ demo data.
 
 | Version | Date | Highlights |
 |---|---|---|
+| 0.1.2 | 2026-10-05 | Tuned to a real proposal-page capture: correct job title, brief and category when you go straight to *Apply*; correct Connects balance; your profile rate is used when Settings has none; **the "Boost your proposal" Connects bid can never be filled** (refused in the page too). |
+| 0.1.1 | 2026-10-05 | Fix "OpenRouter: Missing Authentication header": API keys are checked when you save or test (a Gemini key in the OpenRouter field, or a pasted "Bearer " prefix, is caught next to the field), a wrong-kind key is never sent, rejected keys get a plain explanation, and the key fields can no longer be autofilled by Chrome's password manager. |
 | 0.1.0 | 2026-10-04 | First version. Assisted on-click workflow (no feed watching); job and client scoring with reasons; scam signals; filters as warnings; AI cover letter, screening answers, rate and duration; optional auto-fill of the proposal form (never submits); Jobs tab with outcome statuses; activity log; page snapshot for diagnostics. |

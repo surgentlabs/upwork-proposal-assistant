@@ -20,7 +20,7 @@ export function decideRate(job, cfg) {
     return { rate: Math.max(1, v), unit: 'fixed' };
   }
   if (job.jobType === 'hourly') {
-    let r = cfg.hourlyRate || 0;
+    let r = cfg.hourlyRate || job.profileRate || 0;   // Settings rate, else your profile rate read off the proposal page
     if (r > 0 && cfg.hourlyStrategy === 'within_range' && job.hourlyMin > 0 && job.hourlyMax >= job.hourlyMin) r = clamp(r, job.hourlyMin, job.hourlyMax);
     return { rate: Math.round(r), unit: 'hourly' };
   }

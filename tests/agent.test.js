@@ -77,3 +77,23 @@ test('challenge and login pages are detected; a brief that mentions captcha is n
   const ok = makePage(`<main><h1>Add captcha</h1><div data-test="Description">${long}</div></main>`, 'https://www.upwork.com/jobs/~021234567890123456789');
   assert.equal(ok.run(pageAgent, ['read', null]).blocked, null);
 });
+
+test('real proposal page (captured 2026-10-04): the Connects boost bid is never classified or filled', () => {
+  const page = makePage(fx('apply-real-2026-10-04.html'), 'https://www.upwork.com/nx/proposals/job/~022106883383762540293/apply/');
+  const read = page.run(pageAgent, ['read', null]);
+  assert.deepEqual(read.fields.map(f => f.label), ['Hourly rate', "You'll receive", 'Cover Letter', 'Bid 101 Connects or higher to be ranked in 1st place.']);
+  const form = classifyFields(read.fields);
+  assert.equal(form.cover.label, 'Cover Letter');
+  assert.equal(form.rate.label, 'Hourly rate');
+  assert.deepEqual(form.questions, []);
+  const items = buildFillItems(form, { coverLetter: 'Hi,\n\nX.', answers: [], rate: 30 }, { fillRate: true });
+  assert.deepEqual(items.map(i => i.role), ['cover', 'rate']);
+  // Even a deliberate attempt to fill the boost input is refused in the page.
+  const { results } = page.run(pageAgent, ['fill', { items: [...items, { role: 'evil', index: 3, label: 'Bid 101 Connects or higher to be ranked in 1st place.', value: '101', overwrite: true }] }]);
+  assert.deepEqual(results.map(r => [r.role, r.ok, r.reason]), [['cover', true, undefined], ['rate', true, undefined], ['evil', false, 'refused: Connects / boost field']]);
+  assert.equal(page.doc.querySelector('input[placeholder="Connects"]').value, '');
+  assert.equal(page.doc.querySelector('[aria-label="Hourly rate"]').value, '30');
+  assert.equal(page.clicks.length + page.submits.length, 0);
+  // A screening question that says "rank" is still a question.
+  assert.equal(classifyFields([{ index: 0, kind: 'textarea', label: 'Cover Letter' }, { index: 1, kind: 'textarea', label: 'How would you rank these features?' }]).questions.length, 1);
+});

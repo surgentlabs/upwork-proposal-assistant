@@ -4,6 +4,7 @@ import { AI_TIMEOUT_MS } from '../shared/constants.js';
 import { timedFetch } from './http.js';
 import { log } from './log.js';
 import { todayStr } from './util.js';
+import { checkKey } from '../shared/keys.js';
 
 const RATE_LIMIT_PAUSE_MS = 60_000;
 const limitedUntil = { gemini: 0, openrouter: 0 };
@@ -27,6 +28,7 @@ export async function callGemini(apiKey, model, prompt, { maxTokens = 8192, temp
     let msg = `HTTP ${res.status}`;
     try { msg = JSON.parse(body)?.error?.message || msg; } catch (_) {}
     if (res.status === 429) { setLimited('gemini'); throw aiError('rate_limit', msg); }
+    if (res.status === 400 && /api key/i.test(msg) || res.status === 401 || res.status === 403) throw aiError('auth', `Gemini rejected the key (${msg}) — check Settings → Gemini API key.`);
     throw aiError('error', `Gemini: ${msg}`);
   }
   const data = JSON.parse(body);
@@ -52,6 +54,7 @@ export async function callOpenRouter(apiKey, model, prompt, { maxTokens = 8192, 
     let msg = `HTTP ${res.status}`;
     try { msg = JSON.parse(body)?.error?.message || msg; } catch (_) {}
     if (res.status === 429) { setLimited('openrouter'); throw aiError('rate_limit', msg); }
+    if (res.status === 401) throw aiError('auth', `OpenRouter rejected the key (${msg}) — check Settings → OpenRouter API key; it should start with "sk-or-v1-".`);
     throw aiError('error', `OpenRouter: ${msg}`);
   }
   const text = JSON.parse(body)?.choices?.[0]?.message?.content?.trim();
@@ -64,10 +67,16 @@ function setLimited(p) {
   log(`${p === 'openrouter' ? 'OpenRouter' : 'Gemini'} is rate limiting — pausing it for a minute.`, 'warn');
 }
 
+// A key of the wrong kind (e.g. a Gemini key in the OpenRouter field) is treated as missing and
+// logged once per call, instead of being sent and failing with a confusing 401.
 export function resolveProvider(cfg, now = Date.now()) {
   const primary = cfg.aiProvider === 'openrouter' ? 'openrouter' : 'gemini';
   const secondary = primary === 'gemini' ? 'openrouter' : 'gemini';
-  const key = p => (p === 'gemini' ? cfg.geminiApiKey : cfg.openrouterApiKey)?.trim();
+  const key = p => {
+    const { key: k, error } = checkKey(p, p === 'gemini' ? cfg.geminiApiKey : cfg.openrouterApiKey);
+    if (error) { log(`Not using the ${p === 'gemini' ? 'Gemini' : 'OpenRouter'} key: ${error}`, 'warn'); return ''; }
+    return k;
+  };
   if (key(primary) && limitedUntil[primary] <= now) return primary;
   if (key(secondary) && limitedUntil[secondary] <= now) { if (key(primary)) log(`${primary} unavailable — using ${secondary}.`, 'warn'); return secondary; }
   return null;
@@ -75,7 +84,10 @@ export function resolveProvider(cfg, now = Date.now()) {
 
 export async function callAI(cfg, prompt, opts = {}) {
   const provider = resolveProvider(cfg);
-  if (!provider) throw aiError(cfg.geminiApiKey || cfg.openrouterApiKey ? 'rate_limit' : 'no_key', 'No AI provider available');
+  if (!provider) {
+    const anyValid = ['gemini', 'openrouter'].some(p => { const r = checkKey(p, p === 'gemini' ? cfg.geminiApiKey : cfg.openrouterApiKey); return r.key && !r.error; });
+    throw aiError(anyValid ? 'rate_limit' : 'no_key', anyValid ? 'Both AI providers are rate limited — try again in a minute.' : 'No usable AI key — check Settings.');
+  }
   bumpUsage(provider);
   const text = provider === 'openrouter'
     ? await callOpenRouter(cfg.openrouterApiKey, cfg.openrouterModel, prompt, opts)
@@ -83,7 +95,10 @@ export async function callAI(cfg, prompt, opts = {}) {
   return { text, provider };
 }
 
-export async function testProvider(provider, key, model) {
+export async function testProvider(provider, rawKey, model) {
+  const { key, error } = checkKey(provider, rawKey);
+  if (error) return { ok: false, error };
+  if (!key) return { ok: false, error: 'Enter a key first.' };
   try {
     const text = provider === 'openrouter'
       ? await callOpenRouter(key, model, 'Reply with the single word OK.', { maxTokens: 512, temperature: 0 })
