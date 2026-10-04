@@ -1,12 +1,12 @@
 # Upwork Proposal Assistant
 
 A Chrome (Manifest V3) extension that helps you write Upwork proposals for the job **you have
-open**. Click its icon on a job and it scores the job and the client. Click **Draft proposal** and
+open**. Click its icon on the job feed to rank every visible job, best first. Click it on a job and it scores the job and the client. Click **Draft proposal** and
 your own AI key writes the cover letter, the screening-question answers, the rate and the
 duration. On the proposal page it can **fill the form for you**. You review it and click
 **Submit** yourself.
 
-**Version:** 0.1.3
+**Version:** 0.2.0
 
 > **What it deliberately does not do.** It doesn't watch the job feed, run searches, refresh
 > pages, work in the background or submit anything. Upwork's
@@ -16,6 +16,18 @@ duration. On the proposal page it can **fill the form for you**. You review it a
 > see a tab right after you click its icon there (`activeTab`). See `NOTES.md` for the reasoning.
 
 ## Features
+
+### On the job feed
+- **Every visible job scored, best first.** Click the icon on *Most recent*, *Best matches* or a
+  search results page. It reads the job tiles **already on the page** once (no "Load more", no
+  refresh, no extra requests) and ranks them with the same scoring as a job page. Each row shows:
+  - the pay;
+  - how long ago the job was posted;
+  - the proposals bucket;
+  - the client (verified, amount spent, rating, country);
+  - any scam signals or filter misses;
+  - its status, if you've already worked on it.
+- **Hide misses** filters out jobs outside your filters or with scam signals.
 
 ### On a job page
 - **Score (0–100) with every point explained.** It weighs payment verification, client spend,
@@ -43,6 +55,14 @@ duration. On the proposal page it can **fill the form for you**. You review it a
   It never replaces text you've typed and never clicks anything. The duration dropdown is shown
   for you to set.
 - **Fill form** button, with **Replace text already in the form** for a deliberate overwrite.
+- **Fixed-price milestones.** On Upwork's default *By milestone* form with a single milestone,
+  it fills Milestone 1's amount with your bid and its description with a one-line deliverable.
+  You pick the due date.
+- **Preferred-qualifications warning.** If Upwork says you don't meet the client's preferred
+  qualifications (e.g. "Location: Americas, Asia"), it's shown and scored (−10), because the
+  client sees it.
+- **Keeps the full brief.** The proposal page shows only the start of the brief, so the full
+  brief read on the job page is kept for drafting.
 - **Edit in the popup.** The cover letter, answers and rate are editable there, with **Copy**
   buttons. Edits are saved with the job.
 - **Before-you-send notes.** It lists [bracketed placeholders] the AI left for things only you
@@ -140,6 +160,7 @@ demo data.
 
 | Version | Date | Highlights |
 |---|---|---|
+| 0.2.0 | 2026-10-05 | **Feed scoring:** click the icon on the job feed to rank every visible job, best first, in one read (nothing loaded or refreshed). Fixed-price jobs: the single milestone's amount and description are filled. The "you don't meet the client's preferred qualifications" banner is shown and scored. The proposal page's cut-off brief no longer replaces the full one. |
 | 0.1.3 | 2026-10-05 | Real Upwork wording from a feed capture: "Proposals: Fewer than 5" now counts as the least-competition bucket; a client with "Rating is 0 out of 5" (no reviews yet) is no longer penalised as badly rated; "$1K+ spent" is read; "Less than 1 week" and "Connects: 46" are recognised. |
 | 0.1.2 | 2026-10-05 | Tuned to a real proposal-page capture: correct job title, brief and category when you go straight to *Apply*; correct Connects balance; your profile rate is used when Settings has none; **the "Boost your proposal" Connects bid can never be filled** (refused in the page too). |
 | 0.1.1 | 2026-10-05 | Fix "OpenRouter: Missing Authentication header": API keys are checked when you save or test (a Gemini key in the OpenRouter field, or a pasted "Bearer " prefix, is caught next to the field), a wrong-kind key is never sent, rejected keys get a plain explanation, and the key fields can no longer be autofilled by Chrome's password manager. |

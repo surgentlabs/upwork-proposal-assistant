@@ -140,6 +140,60 @@ test('real proposal page straight away, no rate in Settings: real title and brie
   assert.match(page.doc.getElementById('cover-letter-area').value, /^Hi,/);
 });
 
+test('fixed-price: job page brief survives the truncated proposal page; milestone filled; qualification warning scored', async () => {
+  reset(); 
+  const FID = '~022106178515693258692';
+  setPage(makePage(fx('job-page.html').replace('$40.00 - $60.00\nHourly', '$1,000\nFixed-price'), `https://www.upwork.com/jobs/${FID}`));
+  await message({ type: 'ASSIST', tabId: 7 });
+  const full = store.jobs[FID].description;
+  aiReply = geminiReply({ cover_letter: 'Hi,\n\nA.\n\nB.\n\nC.', answers: ['Three similar sites.'], duration: '1 to 3 months', milestone: 'Full 7-page site, built and launched', assessment: { fit: 0.8, clarity: 0.7, risk: 0, flags: [] } });
+  const page = makePage(fx('apply-fixed-real-2026-10-04.html'), `https://www.upwork.com/nx/proposals/job/${FID}/apply/`);
+  const run = page.run;
+  page.run = (func, args) => { const r = run(func, args); if (args[0] === 'read') r.mainText = fx('apply-fixed-real-2026-10-04.txt'); return r; };
+  setPage(page);
+  const r = await message({ type: 'ASSIST', tabId: 7 });
+  assert.equal(r.ok, true, r.error);
+  const job = store.jobs[FID];
+  assert.equal(job.description, full);                                             // not replaced by "… (link r…"
+  assert.ok(!job.descriptionTruncated);
+  assert.deepEqual(job.qualificationMisses, ['Location: Americas, Asia']);
+  assert.ok(job.score.reasons.some(x => x.pts === -10 && /don't meet: Location: Americas, Asia/.test(x.text)));
+  const prompt = JSON.parse(fetchCalls[0].init.body).contents[0].parts[0].text;
+  assert.match(prompt, /Your bid: \$1000 fixed/);
+  assert.match(prompt, /MILESTONE/);
+  assert.match(prompt, /1\. Describe your recent experience with similar projects/);
+  const v = l => page.doc.querySelector(`[aria-label="${l}"]`).value;
+  assert.equal(v('Milestone 1 Amount'), '1000');
+  assert.equal(v('Description 1'), 'Full 7-page site, built and launched');
+  assert.equal(page.doc.getElementById('q1').value, 'Three similar sites.');
+  assert.equal(page.doc.querySelector('input[placeholder="Connects"]').value, '');
+  assert.equal(r.result.fill.viaMilestone, true);
+  await settle();
+  assert.match(logText(), /cover letter, 1\/1 answers, milestone 1 \$1000, milestone description\. Review, set the duration and the milestone due date, and click Submit yourself\./);
+});
+
+test('feed: every tile scored best-first in one read; no AI call, nothing stored, nothing clicked', async () => {
+  reset({ profileSkills: 'WooCommerce, PHP' });
+  const page = makePage(fx('feed-2026-10-04.html'), 'https://www.upwork.com/nx/find-work/most-recent');
+  setPage(page);
+  const r = await message({ type: 'ASSIST', tabId: 7 });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.result.kind, 'feed');
+  const items = r.result.items;
+  assert.deepEqual(items.map(i => i.id), ['~022106000000000000001', '~022106000000000000003', '~022106000000000000002']);
+  assert.ok(items[0].score.score > items[1].score.score && items[1].score.score > items[2].score.score);
+  assert.deepEqual(items[2].score.scams, ['asks to move the conversation off Upwork']);
+  assert.equal(items[0].proposals, 'less than 5');
+  assert.equal(items[0].client.totalSpent, 20000);
+  assert.equal(items[1].budget, 300);
+  assert.equal(fetchCalls.length, 0);
+  assert.equal(store.jobs, undefined);
+  assert.deepEqual(executed.map(e => e.action), ['read', 'feed']);
+  assert.equal(page.clicks.length, 0);
+  await settle();
+  assert.match(logText(), /Scored 3 jobs on the feed — best \d+: "Homepage redesign on an existing WooCommerce site" · 1 with scam signals/);
+});
+
 test('auto-fill off: the proposal page is read, nothing drafted or filled', async () => {
   reset({ autoFill: false }); const page = makePage(fx('apply-page.html'), APPLY_URL); setPage(page);
   const r = await message({ type: 'ASSIST', tabId: 7 });

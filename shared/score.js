@@ -125,6 +125,8 @@ export function scoreJob(job, cfg = {}, now = Date.now()) {
   if (job.jobType === 'hourly' && myRate > 0 && job.hourlyMax > 0 && myRate > job.hourlyMax * 1.2) add(-6, `your $${myRate}/hr is above their $${job.hourlyMax}/hr max`);
   if (job.connects > 16) add(-3, `${job.connects} Connects to apply`);
 
+  if (job.qualificationMisses?.length) add(-10, `client will see you don't meet: ${job.qualificationMisses.join('; ')}`);
+
   const scams = scamSignals(job);
   for (const why of scams) add(-25, why);
 

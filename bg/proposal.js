@@ -79,6 +79,7 @@ export function buildPrompt(job, cfg, { rate, unit }, questions, rnd = Math.rand
     `Client's brief:\n${brief}`,
     `Budget: ${budget}`,
     job.projectLength ? `Expected length: ${job.projectLength}` : '',
+    job.descriptionTruncated ? 'Note: the brief above is cut short (only its start was visible). Work with what is there; do not guess at the missing part.' : '',
     job.experience ? `Experience level wanted: ${job.experience}` : '',
     priceLine,
     briefQs.length ? `Inside the brief, the client asks applicants to:\n${briefQs.map((q, i) => `${i + 1}. ${q}`).join('\n')}\nHandle these in the cover letter first (one short line each), before the paragraphs.` : '',
@@ -99,9 +100,10 @@ export function buildPrompt(job, cfg, { rate, unit }, questions, rnd = Math.rand
       ? `SCREENING QUESTIONS — Upwork asks these in separate fields. Answer each one separately, directly and specifically to this job, in 1–4 sentences, in the same voice. No greeting, don't repeat the question, don't refer to the cover letter:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
       : '',
     `DURATION — pick the one option that fits this scope: ${DURATIONS.map(d => `"${d}"`).join(', ')}.`,
+    unit === 'fixed' ? 'MILESTONE — one short line (under 60 characters) naming what the client gets for the full amount, e.g. "Full 7-page site built, tested and launched".' : '',
     'ASSESSMENT — also rate the job honestly for the freelancer, 0 to 1: "fit" (how well it matches your skills), "clarity" (how clear the scope is), "risk" (scam / off-platform payment / free-work / ToS risk). "flags": short reasons for any risk, else [].',
     'Respond with ONLY a valid JSON object (no markdown, no backticks):',
-    `{"cover_letter": "…", "answers": [${questions.map(() => '"…"').join(', ')}], "duration": "…", "assessment": {"fit": 0.0, "clarity": 0.0, "risk": 0.0, "flags": []}}`,
+    `{"cover_letter": "…", "answers": [${questions.map(() => '"…"').join(', ')}], "duration": "…",${unit === 'fixed' ? ' "milestone": "…",' : ''} "assessment": {"fit": 0.0, "clarity": 0.0, "risk": 0.0, "flags": []}}`,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -190,7 +192,8 @@ export function finishDraft(parsed, questions, { rate, unit }, log = () => {}) {
   const duration = DURATIONS.find(d => d.toLowerCase() === String(parsed.duration || '').toLowerCase()) || null;
   const a = parsed.assessment || {};
   const assessment = { fit: clean01(a.fit), clarity: clean01(a.clarity), risk: clean01(a.risk), flags: Array.isArray(a.flags) ? a.flags.map(String).slice(0, 5) : [] };
-  return { coverLetter: cover, answers, duration, rate, unit, assessment, source: 'ai', ...qualityNotes(cover, answers) };
+  const milestone = unit === 'fixed' && parsed.milestone ? String(parsed.milestone).replace(/[\r\n]+/g, ' ').trim().slice(0, 100) : null;
+  return { coverLetter: cover, answers, duration, rate, unit, milestone, assessment, source: 'ai', ...qualityNotes(cover, answers) };
 }
 
 // Things to look at before submitting: placeholders to fill, banned phrases, length.

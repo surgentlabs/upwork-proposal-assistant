@@ -1,5 +1,60 @@
 # Upwork Proposal Assistant — Design Notes (newest first)
 
+## v0.2.0 — Feed scoring; fixed-price milestones; qualifications banner
+**Feed scoring** (user asked for it after we explained the risk was the same as reading a job
+page):
+
+- `isFeedUrl` covers `/nx/find-work/…`, `/nx/search/jobs…` and `/nx/jobs/search…` without a job
+  id. On those, `readTab` hands off to `scoreFeed`.
+- **`pageAgent('feed')`:**
+  - takes every `<a>` whose href has a `~0…` id and `/jobs/`, `/details/` or `/apply/`;
+  - each tile is the **largest ancestor that contains links to that one job only**, so no class
+    names are relied on;
+  - returns `{ id, href, title, text, description }`, with the description from a
+    `data-test*="JobDescription"` / `"Description"` element when present;
+  - caps at 60 tiles, reads only, and never touches "Load More Jobs".
+- **Fallback:** if no job links are found, `splitFeedText` splits the visible text at each
+  "Posted … ago" (the verified tile start), with the title on the line after "Proposals:".
+- **`parseFeedTile`** reuses `parseJobText` plus the verified type line ("Hourly - Intermediate
+  - Est. Time: …" / "Fixed-price - Entry level - Est. Budget: $30") for type, level, budget and
+  length. "Hourly: $25.00 - $50.00 - …" is assumed. Skills come from between "Skills" and "Next
+  skills".
+- **Scoring:** `scoreJob` as usual, sorted best first, with each tile's stored status if you've
+  already opened it. One log line. **Nothing is stored and no AI call is made.**
+- **Popup:** a ranked list with "Hide misses" (filter misses or scam signals), remembered in
+  `localStorage`.
+- **Unverified:** the tile DOM (the text layout is verified, the link and ancestor structure is
+  not). A feed snapshot now includes `feed: [first 5 tiles + parsed]` to check it.
+
+**Fixed-price proposal page** (real capture 2026-10-04, saved as
+`tests/fixtures/apply-fixed-real-2026-10-04.{txt,html}` with neutral text):
+
+- **"By milestone" is the default.** Its fields are `Description 1`, `Due date for the milestone`
+  (a date picker) and `Milestone 1 Amount` (shows "$0.00"). "Total price of project" is text,
+  not an input.
+- **The screening question has the label "Describe your recent experience with similar
+  projects".** It was classified correctly.
+- **Single-milestone filling:** with exactly one milestone row, `classifyFields` returns
+  `milestone: { amount, desc }`, and `buildFillItems` fills:
+  - the amount with the bid. "$0.00" counts as empty; an amount you typed is kept on auto-fill;
+    it's automatic only once per job, like the rate;
+  - the description with `draft.milestone`, a new prompt field (one line under 60 characters,
+    fixed jobs only), or "Complete project as described". Empty only.
+
+  The due date is never touched. With two or more milestone rows, nothing is filled.
+- **The brief is cut short** ("… (link r… more"). `jobDetails` sets `descriptionTruncated`.
+  `readTab` keeps the stored brief when the new one is truncated or shorter. When there's only
+  the truncated one, the prompt says so and the popup suggests reading the job page first.
+- **Banner:** "You do not meet all the client's preferred qualifications … does not meet the
+  following criteria: Location: Americas, Asia" becomes `qualificationMisses`. It's a warning
+  banner and −10 in the score. "Featured Job" becomes `featured`, recorded for the model.
+
+**Tests:** 51. New: fixed-price parse; milestone fill, including date and boost untouched,
+2-row, hourly and typed-amount cases; feed tile isolation, with "Load More Jobs" never clicked;
+feed and tile parse plus the text fallback; end to end, the job-page brief survives the
+proposal page, the milestone and question are filled and the qualification is scored; end to
+end feed scoring with no AI call, nothing stored, and read + feed only.
+
 ## v0.1.3 — Wording from a logged-in feed capture
 The user sent a snapshot of `/nx/find-work/most-recent`, the feed rather than a job page. That
 is correctly `kind: other`, so nothing is scored there. Saved, with neutral text, as

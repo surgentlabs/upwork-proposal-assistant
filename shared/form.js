@@ -23,10 +23,21 @@ export function classifyFields(allFields = []) {
     .filter(f => f !== cover && !NOT_QUESTION_RE.test(f.label))
     .map(f => ({ index: f.index, label: f.label, text: questionText(f.label) }));
   const rate = fields.find(f => f.kind === 'input' && RATE_RE.test(`${f.label} ${f.placeholder}`) && !NOT_RATE_RE.test(f.label));
+  // Fixed-price "By milestone" (Upwork's default — verified 2026-10-04): "Description 1",
+  // "Due date for the milestone" (a date picker — left to you) and "Milestone 1 Amount". Only a
+  // single-milestone form is filled; with more rows the split is your call.
+  const msAmount = fields.find(f => f.kind === 'input' && /^milestone\s*1\s*amount$/i.test(f.label));
+  const msDesc = fields.find(f => f.kind === 'input' && /^description\s*1$/i.test(f.label));
+  const moreRows = fields.some(f => /^milestone\s*([2-9]|\d\d+)\s*amount$/i.test(f.label));
+  const milestone = msAmount && !moreRows ? {
+    amount: { index: msAmount.index, label: msAmount.label, value: msAmount.value || '' },
+    desc: msDesc ? { index: msDesc.index, label: msDesc.label } : null,
+  } : null;
   return {
     cover: cover ? { index: cover.index, label: cover.label } : null,
     questions,
     rate: rate ? { index: rate.index, label: rate.label, value: rate.value || '' } : null,
+    milestone,
   };
 }
 
@@ -48,6 +59,11 @@ export function buildFillItems(form, draft, { fillRate = true, overwrite = false
   if (fillRate && form.rate && draft.rate > 0 && !(auto && rateAlreadyAutoFilled)) {
     // Upwork pre-fills the rate field with your profile rate, so the rate is set even when non-empty.
     items.push({ role: 'rate', index: form.rate.index, label: form.rate.label, value: String(draft.rate), overwrite: true });
+  } else if (fillRate && !form.rate && form.milestone && draft.unit === 'fixed' && draft.rate > 0 && !(auto && rateAlreadyAutoFilled)) {
+    // The amount box shows "$0.00" when untouched — that counts as empty.
+    const untouched = /^\$?\s*0*(\.0+)?$/.test(String(form.milestone.amount.value || '').trim());
+    items.push({ role: 'rate', index: form.milestone.amount.index, label: form.milestone.amount.label, value: String(draft.rate), overwrite: untouched || (overwrite && !auto) });
+    if (form.milestone.desc) items.push({ role: 'milestone', index: form.milestone.desc.index, label: form.milestone.desc.label, value: draft.milestone || 'Complete project as described', overwrite: overwrite && !auto });
   }
   return items;
 }

@@ -131,3 +131,44 @@ test('real feed wording (captured 2026-10-04): "Fewer than 5", "$1K+ spent", rat
   assert.equal(job.client.rating, null);
   assert.equal(job.client.countryCode, 'US');
 });
+
+test('real fixed-price proposal page (captured 2026-10-04): truncated brief, qualifications banner, featured', () => {
+  const job = parseJobText({ url: 'https://www.upwork.com/nx/proposals/job/~022106178515693258692/apply/', title: 'Submit a proposal', mainText: fx('apply-fixed-real-2026-10-04.txt') });
+  assert.equal(job.title, 'Build a Simple 7-Page Wordpress/Elementor Site');
+  assert.equal(job.jobType, 'fixed');
+  assert.equal(job.budget, 1000);
+  assert.equal(job.projectLength, '1 to 3 months');
+  assert.equal(job.connects, 10);
+  assert.equal(job.connectsBalance, 46);
+  assert.equal(job.descriptionTruncated, true);
+  assert.match(job.description, /lets visitors get in touch \(link r…$/);
+  assert.deepEqual(job.qualificationMisses, ['Location: Americas, Asia']);
+  assert.equal(job.featured, true);
+  assert.deepEqual(parseJobText({ url: 'https://www.upwork.com/jobs/~01aaaaaaaaaaaaaaaa', mainText: 'x' }).qualificationMisses, []);
+});
+
+test('feed: tiles parsed from the verified tile layout; text-split fallback; feed URLs', async () => {
+  const { isFeedUrl, parseFeedTile, splitFeedText } = await import('../shared/parse.js');
+  assert.equal(isFeedUrl('https://www.upwork.com/nx/find-work/most-recent'), true);
+  assert.equal(isFeedUrl('https://www.upwork.com/nx/find-work/'), true);
+  assert.equal(isFeedUrl('https://www.upwork.com/nx/search/jobs/?q=wordpress'), true);
+  assert.equal(isFeedUrl('https://www.upwork.com/nx/find-work/most-recent/details/~01abcdef1234567890'), false);
+  assert.equal(isFeedUrl('https://www.upwork.com/jobs/~01abcdef1234567890'), false);
+  const tiles = splitFeedText(fx('feed-tile-2026-10-04.txt'));
+  assert.equal(tiles.length, 1);
+  const t = parseFeedTile(tiles[0]);
+  assert.equal(t.title, 'Homepage redesign on an existing site');
+  assert.equal(t.jobType, 'hourly');
+  assert.equal(t.experience, 'intermediate');
+  assert.equal(t.projectLength, 'Less than 1 week');
+  assert.equal(t.proposals, 'less than 5');
+  assert.match(t.description, /front-end redesign/);
+  assert.deepEqual(t.skills, ['Web Design', 'Landing Page Design']);
+  const f = parseFeedTile({ title: 'X', text: 'Posted 2 hours ago\n•\nProposals: 50+\nX\nFixed-price - Entry level - Est. Budget: $30\nCopy products.\nSkills\nData Entry\nPayment unverified\nRating is 0 out of 5.\n$0 spent\nIndia' });
+  assert.equal(f.jobType, 'fixed');
+  assert.equal(f.budget, 30);
+  assert.equal(f.experience, 'entry');
+  assert.equal(f.client.paymentVerified, false);
+  assert.equal(f.client.totalSpent, 0);
+  assert.equal(f.client.countryCode, 'IN');
+});

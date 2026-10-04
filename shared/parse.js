@@ -166,6 +166,71 @@ export function parseJobText(read) {
     job.category = jd.category;
   }
   job.description = (read?.description || '').trim() || jd?.description || descriptionFallback(ls);
+  job.descriptionTruncated = !!jd?.truncated;   // the proposal page shows only the start of the brief ("… more")
+  job.featured = /^Featured Job$/im.test(raw) || null;
+  // Proposal page banner (verified 2026-10-04): "You do not meet all the client's preferred
+  // qualifications … the proposal does not meet the following criteria:\n\nLocation: Americas, Asia\nClose the alert"
+  const qm = raw.match(/does not meet the following criteria:\s*\n([\s\S]*?)\n\s*(?:Close the alert|Proposal settings)/i);
+  job.qualificationMisses = qm ? lines(qm[1]).filter(l => l.length < 120).slice(0, 6) : [];
+  return job;
+}
+
+// ── Job feed (/nx/find-work/…, /nx/search/jobs…) — tile layout verified 2026-10-04 ──
+export function isFeedUrl(url) {
+  try {
+    const u = new URL(url);
+    return /upwork\.com$/i.test(u.hostname) && /^\/nx\/(find-work|search\/jobs|jobs\/search)/i.test(u.pathname) && !jobIdFromUrl(url);
+  } catch (_) { return false; }
+}
+
+// Fallback when no job links were found: split the visible feed text at each "Posted … ago".
+export function splitFeedText(text) {
+  const ls = String(text || '').split('\n');
+  const starts = ls.map((l, i) => (/^\s*Posted\s+.*\bago\s*$|^\s*Posted\s+(yesterday|just now)\s*$/i.test(l) ? i : -1)).filter(i => i >= 0);
+  return starts.map((s, k) => {
+    const block = ls.slice(s, starts[k + 1] ?? ls.length);
+    const end = block.findIndex(l => /^\s*Load More Jobs\s*$/i.test(l));
+    const body = (end >= 0 ? block.slice(0, end) : block).join('\n');
+    const t = lines(body);
+    const pi = t.findIndex(l => /^Proposals:/i.test(l));
+    return { id: null, href: null, title: pi >= 0 ? t[pi + 1] || '' : '', text: body, description: '' };
+  });
+}
+
+// One tile: { href, title, text, description } from pageAgent('feed').
+// Type line: "Hourly - Intermediate - Est. Time: Less than 1 week, Less than 30 hrs/week" or
+// "Fixed-price - Entry level - Est. Budget: $30" (both verified); "Hourly: $25.00 - $50.00 - …" assumed.
+export function parseFeedTile(tile) {
+  const ls = lines(String(tile.text || ''));
+  let title = tile.title;
+  if (!title) { const pi = ls.findIndex(l => /^Proposals:/i.test(l)); title = pi >= 0 ? ls[pi + 1] : ''; }
+  const job = parseJobText({ url: tile.href, title, mainText: tile.text, description: tile.description });
+  const tl = ls.find(l => /^(Hourly|Fixed[- ]price)\b.*\s-\s/i.test(l));
+  if (tl) {
+    job.jobType = /^hourly/i.test(tl) ? 'hourly' : 'fixed';
+    const exp = tl.match(/\b(Entry level|Intermediate|Expert)\b/i);
+    if (exp) job.experience = exp[1].toLowerCase().replace(' level', '');
+    const hr = tl.match(/\$([\d,]+(?:\.\d+)?)\s*[-–]\s*\$([\d,]+(?:\.\d+)?)/);
+    if (hr && job.jobType === 'hourly') { job.hourlyMin = n(hr[1]); job.hourlyMax = n(hr[2]); }
+    const eb = tl.match(/Est\. Budget:\s*\$([\d,]+(?:\.\d+)?)/i);
+    if (eb) job.budget = n(eb[1]);
+    const et = tl.match(/Est\. Time:\s*([^,]+)/i);
+    if (et) job.projectLength = et[1].trim().replace(/less than a (month|week)/i, 'Less than 1 $1');
+    if (!job.description) {
+      const i = ls.indexOf(tl);
+      const out = [];
+      for (const l of ls.slice(i + 1)) { if (/^(Skills|more|Verified|Payment (method )?(verified|unverified))$/i.test(l)) break; out.push(l); }
+      job.description = out.join('\n');
+    }
+  }
+  if (!job.skills.length) {
+    const i = ls.findIndex(l => /^Skills$/i.test(l));
+    if (i >= 0) {
+      const out = [];
+      for (const l of ls.slice(i + 1)) { if (/^(Next skills|Verified|Payment|Rating is)/i.test(l)) break; if (!/^Skip skills$/i.test(l) && l.length <= 60) out.push(l); }
+      job.skills = out;
+    }
+  }
   return job;
 }
 
@@ -177,12 +242,19 @@ function jobDetails(ls) {
   const pm = (ls[j] || '').match(/^(.*?)\s*Posted\s/i);
   if (pm) { category = pm[1].trim() || null; j++; }
   const out = [];
+  let stop = '';
   for (const l of ls.slice(j)) {
-    if (/^(More\/Less about|View job posting|less|more)$/i.test(l) || /^(Entry level|Intermediate|Expert)$/i.test(l)) break;
+    if (/^(More\/Less about|View job posting|less|more)$/i.test(l) || /^(Entry level|Intermediate|Expert)$/i.test(l)) { stop = l; break; }
     out.push(l);
   }
-  if (out.length) out[out.length - 1] = out[out.length - 1].replace(/\s+(less|more)$/i, '');
-  return { title, category, description: out.join('\n') };
+  // A brief cut short ends "… more" (verified) or is followed by a lone "more" line.
+  let truncated = /^more$/i.test(stop);
+  if (out.length) {
+    const last = out[out.length - 1];
+    if (/\s+more$/i.test(last)) truncated = true;
+    out[out.length - 1] = last.replace(/\s+(less|more)$/i, '');
+  }
+  return { title, category, description: out.join('\n'), truncated };
 }
 
 function descriptionFallback(ls) {

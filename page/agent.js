@@ -4,6 +4,7 @@
 //
 //   pageAgent('read')            → { url, title, description, mainText, fields[], blocked }
 //   pageAgent('fill', { items }) → { results[] }   items: [{ index, label, value, overwrite }]
+//   pageAgent('feed')            → { url, tiles[] }   the job tiles already on a feed / search page
 //
 // It reads visible text and form fields, and sets field values. It NEVER clicks, submits,
 // navigates or sends a request — the proposal is only sent when you press Submit yourself.
@@ -125,6 +126,28 @@ export function pageAgent(action, payload) {
       results.push({ index: item.index, role: item.role, ok: true });
     }
     return { results };
+  }
+
+  // Job tiles on a feed / search page: each tile is the largest ancestor of a job link that
+  // contains links to that one job only — structure-agnostic, no class names. Reads what's
+  // already on the page; never clicks "Load More Jobs".
+  if (action === 'feed') {
+    const idOf = h => { const m = String(h || '').match(/~(0[0-9a-z]{9,})/i); return m ? m[1].toLowerCase() : null; };
+    const jobLinks = el => [...el.querySelectorAll('a[href*="~0"]')].filter(a => idOf(a.getAttribute('href')) && /\/jobs\/|\/details\/|\/apply\//i.test(a.getAttribute('href')));
+    const idsIn = el => new Set(jobLinks(el).map(a => idOf(a.getAttribute('href'))));
+    const seen = new Set();
+    const tiles = [];
+    for (const a of jobLinks(document)) {
+      const id = idOf(a.getAttribute('href'));
+      if (seen.has(id)) continue;
+      seen.add(id);
+      let node = a;
+      while (node.parentElement && node.parentElement !== document.body && idsIn(node.parentElement).size <= 1) node = node.parentElement;
+      const desc = node.querySelector('[data-test="Description"], [data-test*="job-description" i], [data-test*="JobDescription" i]');
+      tiles.push({ id: `~${id}`, href: new URL(a.getAttribute('href'), location.href).href, title: clean(textOf(a)), text: textOf(node).slice(0, 6000), description: textOf(desc).trim().slice(0, 4000) });
+      if (tiles.length >= 60) break;
+    }
+    return { url: location.href, tiles };
   }
 
   return { error: `unknown action ${action}` };

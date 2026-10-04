@@ -38,11 +38,23 @@
     ],
     profileSkills: 'WordPress, WooCommerce, PHP, Elementor', hourlyRate: 45, autoFill: true, fillRate: true,
   };
+  const sc = (score, reasons = [], scams = [], misses = []) => ({ score, reasons, scams, misses });
+  const feedItems = [
+    { id: '~02f1', url: '#', title: 'Fix WooCommerce checkout losing shipping zone', jobType: 'hourly', hourlyMin: 30, hourlyMax: 60, postedAt: now - 6 * min, proposals: 'less than 5', client: { paymentVerified: true, totalSpent: 48000, rating: 4.9, country: 'Canada' }, score: sc(91), status: null },
+    { id: '~02f2', url: '#', title: 'Elementor landing page from a Figma file', jobType: 'fixed', budget: 400, postedAt: now - 22 * min, proposals: '5 to 10', client: { paymentVerified: true, totalSpent: 3000, rating: null, country: 'United States' }, score: sc(74), status: 'drafted' },
+    { id: '~02f3', url: '#', title: 'Speed up a WordPress blog (Core Web Vitals)', jobType: 'hourly', hourlyMin: 15, hourlyMax: 25, postedAt: now - 75 * min, proposals: '20 to 50', client: { paymentVerified: true, totalSpent: 600, rating: 4.2, country: 'Australia' }, score: sc(52, [], [], ['hourly up to $25 < $35']) },
+    { id: '~02f4', url: '#', title: 'Copy 500 products into a spreadsheet', jobType: 'fixed', budget: 30, postedAt: now - 120 * min, proposals: '50+', client: { paymentVerified: false, totalSpent: 0, rating: null, country: 'India' }, score: sc(4, [], ['asks to move the conversation off Upwork'], ['budget $30 < $100', 'payment not verified']) },
+  ];
   const pick = keys => { const o = {}; (keys == null ? Object.keys(store) : [].concat(keys)).forEach(k => { if (k in store) o[k] = JSON.parse(JSON.stringify(store[k])); }); return o; };
   const area = { get: (k, cb) => { const r = pick(k); return cb ? cb(r) : Promise.resolve(r); }, set: (o, cb) => { Object.assign(store, o); return cb ? cb() : Promise.resolve(); }, remove: () => Promise.resolve() };
   const delay = ms => new Promise(r => setTimeout(r, ms));
   const handlers = {
-    ASSIST: async () => { await delay(400); return { kind: 'apply', job: store.jobs[job.id], fill: { ok: true, done: ['cover', 'q1', 'q2', 'rate'], unanswered: 0, duration: draft.duration } }; },
+    // popup.html?demo=feed previews the feed view.
+    ASSIST: async () => {
+      await delay(400);
+      if (/demo=feed/.test(location.search)) return { kind: 'feed', items: feedItems };
+      return { kind: 'apply', job: store.jobs[job.id], fill: { ok: true, done: ['cover', 'q1', 'q2', 'rate'], unanswered: 0, duration: draft.duration } };
+    },
     DRAFT: async m => { await delay(900); return store.jobs[m.jobId]; },
     FILL: async () => ({ ok: true, done: ['cover', 'q1', 'q2'], unanswered: 0 }),
     SET_STATUS: async m => { store.jobs[m.jobId].status = m.status; return store.jobs[m.jobId]; },
@@ -51,7 +63,7 @@
   };
   window.chrome = {
     runtime: {
-      getManifest: () => ({ version: '0.1.3' }),
+      getManifest: () => ({ version: '0.2.0' }),
       sendMessage: async m => { const h = handlers[m.type]; return h ? { ok: true, result: await h(m) } : { ok: true, result: null }; },
       onMessage: { addListener: () => {} },
     },

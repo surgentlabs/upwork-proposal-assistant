@@ -64,7 +64,7 @@ async function emptyHint() {
   const { jobs = {} } = await local('jobs');
   const ready = Object.values(jobs).filter(j => j.status === 'drafted' || j.status === 'filled').length;
   return `<div class="empty"><p><strong>Open an Upwork job, then click the icon.</strong></p>
-    <p class="small">On a job page you get a score and a draft. On its proposal page (after <em>Apply now</em>) the draft is filled into the form for you to review and submit.</p>
+    <p class="small">On the job feed you get every visible job scored, best first. On a job page you get a score and a draft. On its proposal page (after <em>Apply now</em>) the draft is filled into the form for you to review and submit.</p>
     ${ready ? `<p class="small"><button class="link" data-goto="jobs">${ready} draft${ready === 1 ? '' : 's'} ready to submit →</button></p>` : ''}</div>`;
 }
 
@@ -99,14 +99,17 @@ function renderAssist() {
     box.innerHTML = `<div class="banner bad"><strong>Stopped.</strong> Upwork is showing ${r.blocked === 'login' ? 'a login page' : 'a verification or challenge page'}. Nothing was read or filled. Deal with it in the tab yourself, then click the icon again.</div>`;
     return;
   }
+  if (r?.kind === 'feed') { renderFeed(r); return; }
   if (!r || r.kind === 'other' || !r.job) { emptyHint().then(h => { box.innerHTML = h; }); return; }
   const job = r.job, d = job.draft, sc = job.score || { score: 0, reasons: [], scams: [], misses: [] };
   const banners = [];
-  if (r.fill?.ok) banners.push(`<div class="banner good"><strong>Filled</strong> ${esc(fillSummary(r.fill))}. Review it${d?.duration ? `, set the duration to <strong>${esc(d.duration)}</strong>` : ''}, and click <strong>Submit</strong> yourself.</div>`);
+  if (r.fill?.ok) banners.push(`<div class="banner good"><strong>Filled</strong> ${esc(fillSummary(r.fill))}. Review it${d?.duration ? `, set the duration to <strong>${esc(d.duration)}</strong>` : ''}${r.fill.viaMilestone ? ', pick the milestone due date' : ''}, and click <strong>Submit</strong> yourself.</div>`);
   else if (r.fill && !r.fill.ok) banners.push(`<div class="banner warn">${esc(r.fill.error || 'Nothing was filled.')}</div>`);
   if (sc.scams.length) banners.push(`<div class="banner bad"><strong>Possible scam:</strong> ${esc(sc.scams.join('; '))}.</div>`);
   if (d?.assessment?.risk >= 0.6) banners.push(`<div class="banner bad"><strong>AI risk ${Math.round(d.assessment.risk * 100)}%:</strong> ${esc(d.assessment.flags.join('; ') || 'see the brief')}.</div>`);
   if (sc.misses.length) banners.push(`<div class="banner warn"><strong>Outside your filters:</strong> ${esc(sc.misses.join(', '))}.</div>`);
+  if (job.qualificationMisses?.length) banners.push(`<div class="banner warn"><strong>The client will see you don't meet:</strong> ${esc(job.qualificationMisses.join('; '))}.</div>`);
+  if (job.descriptionTruncated && !d) banners.push('<div class="banner info">Only the start of the brief is on this page. For a better draft, open the job page first, click the icon there, then come back to <em>Apply</em>.</div>');
 
   box.innerHTML = `${banners.join('')}
     <div class="card">
@@ -130,6 +133,44 @@ function renderAssist() {
   wireAssist(job);
 }
 
+// ── Feed: every job tile on the page you opened, best first ──
+let hideMisses = false;
+try { hideMisses = localStorage.getItem('hideFeedMisses') === '1'; } catch (_) {}
+
+function renderFeed(r) {
+  const box = $('#assist');
+  const items = r.items || [];
+  if (!items.length) { box.innerHTML = '<div class="banner warn">No job tiles found on this page. Send a page snapshot (Settings → Diagnostics) so the feed reader can be fixed.</div>'; return; }
+  const shown = hideMisses ? items.filter(i => !i.score.misses.length && !i.score.scams.length) : items;
+  const pay = i => i.jobType === 'fixed' ? `Fixed${i.budget ? ` $${i.budget.toLocaleString()}` : ''}` : i.jobType === 'hourly' ? `Hourly${i.hourlyMin ? ` $${i.hourlyMin}–$${i.hourlyMax}` : ''}` : '';
+  const age = i => { const a = currentAge(i); return a != null ? `${fmtAge(a)} ago` : ''; };
+  const client = c => [c.paymentVerified === true ? 'verified' : c.paymentVerified === false ? 'unverified' : '', c.totalSpent != null ? `$${c.totalSpent >= 1000 ? `${Math.round(c.totalSpent / 1000)}K` : c.totalSpent} spent` : '', c.rating ? `★${c.rating}` : '', c.country || ''].filter(Boolean).join(' · ');
+  box.innerHTML = `
+    <div class="row spread" style="margin-bottom:8px">
+      <span class="small muted">${items.length} job${items.length === 1 ? '' : 's'} on this page, best first${hideMisses ? ` · ${items.length - shown.length} hidden` : ''}</span>
+      <label class="check small" style="margin:0"><input type="checkbox" id="hide-misses"${hideMisses ? ' checked' : ''}> <span>Hide misses</span></label>
+    </div>
+    <div class="card" style="padding:4px 12px">${shown.map(i => `
+      <div class="job-row">
+        <div class="row" style="align-items:flex-start">
+          <div class="score ${scoreClass(i.score.score)}" style="min-width:36px;height:36px;font-size:14px;border-radius:8px">${i.score.score}</div>
+          <div class="grow">
+            ${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="font-weight:600">${esc(i.title)}</a>` : `<strong>${esc(i.title)}</strong>`}
+            ${i.status ? ` <span class="pill ${esc(i.status)}">${esc(STATUS_LABEL[i.status] || i.status)}</span>` : ''}
+            <div class="meta">${esc([pay(i), age(i), i.proposals && `${i.proposals} proposals`, client(i.client)].filter(Boolean).join(' · '))}</div>
+            ${i.score.scams.length ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(i.score.scams.join('; '))}</div>` : ''}
+            ${i.score.misses.length ? `<div class="small" style="color:var(--warn);margin-top:3px">Outside filters: ${esc(i.score.misses.join(', '))}</div>` : ''}
+          </div>
+        </div>
+      </div>`).join('') || '<div class="empty small">Every job here is outside your filters.</div>'}</div>
+    <p class="small muted">Open a job, then click the icon on it to draft. Only the jobs already on this page are scored — nothing is loaded or refreshed.</p>`;
+  box.querySelector('#hide-misses').addEventListener('change', e => {
+    hideMisses = e.target.checked;
+    try { localStorage.setItem('hideFeedMisses', hideMisses ? '1' : '0'); } catch (_) {}
+    renderFeed(r);
+  });
+}
+
 function actionButtons(kind, d) {
   const draft = `<button class="btn${d ? '' : ' primary'}" id="draft">${d ? 'Redraft' : 'Draft proposal'}</button>`;
   return kind === 'apply' ? `<button class="btn primary" id="fill"${d ? '' : ' disabled'}>Fill form</button>${draft}` : draft;
@@ -138,7 +179,8 @@ function actionButtons(kind, d) {
 function fillSummary(f) {
   const done = f.done || [];
   const q = done.filter(x => /^q\d+$/.test(x)).length;
-  return [done.includes('cover') && 'the cover letter', (q || f.unanswered) && `${q} of ${q + (f.unanswered || 0)} answers`, done.includes('rate') && 'the rate'].filter(Boolean).join(', ') || 'nothing';
+  return [done.includes('cover') && 'the cover letter', (q || f.unanswered) && `${q} of ${q + (f.unanswered || 0)} answers`,
+    done.includes('rate') && (f.viaMilestone ? 'the milestone amount' : 'the rate'), done.includes('milestone') && 'its description'].filter(Boolean).join(', ') || 'nothing';
 }
 
 function draftCard(d, job) {
@@ -158,6 +200,7 @@ function draftCard(d, job) {
       <label class="field"><span>${d.unit === 'hourly' ? 'Rate ($/hr)' : d.unit === 'fixed' ? 'Bid ($)' : 'Rate / bid ($)'}</span><input type="number" id="d-rate" min="0" step="1" value="${d.rate || ''}" placeholder="not set"></label>
       <label class="field"><span>Duration (set on Upwork)</span><input type="text" value="${esc(d.duration || '—')}" readonly></label>
     </div>
+    ${d.milestone ? `<p class="small muted" style="margin:-4px 0 8px">Milestone: ${esc(d.milestone)}</p>` : ''}
     <div class="row spread"><span class="q" style="margin:0">Cover letter</span><button class="btn small" data-copy="cover">Copy</button></div>
     <textarea id="d-cover" rows="11" style="margin-top:4px">${esc(d.coverLetter)}</textarea>
     ${qs.map((q, i) => `<div class="row spread" style="margin-top:8px"><span class="q grow" style="margin:0">${i + 1}. ${esc(q)}</span><button class="btn small" data-copy="a${i}">Copy</button></div>
