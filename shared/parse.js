@@ -90,14 +90,15 @@ export function parseJobText(read) {
   job.hourlyMax = hourlyM ? n(hourlyM[2]) : null;
   const exp = first(raw, /(Entry level|Intermediate|Expert)\s*\n\s*Experience level/i, /Experience level:?\s*\n?\s*(Entry level|Intermediate|Expert)/i);
   job.experience = exp ? exp[1].toLowerCase().replace(' level', '') : null;
-  const dur = first(raw, /(Less than (?:1|a) month|1 to 3 months|1-3 months|3 to 6 months|3-6 months|More than 6 months)/i);
-  job.projectLength = dur ? dur[1].replace('-', ' to ').replace(/less than a month/i, 'Less than 1 month') : null;
+  const dur = first(raw, /(Less than (?:1|a) week|Less than (?:1|a) month|1 to 3 months|1-3 months|3 to 6 months|3-6 months|More than 6 months)/i);
+  job.projectLength = dur ? dur[1].replace('-', ' to ').replace(/less than a (month|week)/i, 'Less than 1 $1') : null;
   const hrs = first(raw, /(Less than 30 hrs\/week|More than 30 hrs\/week|30\+ hrs\/week|Hours to be determined)/i);
   job.hoursPerWeek = hrs ? hrs[1] : null;
 
   // ── Activity on this job ── (verified labels on a public job page, 2026-10-04)
-  const prop = raw.match(/Proposals:?\s*\n?\s*(Less than 5|5 to 10|10 to 15|15 to 20|20 to 50|50\+)/i);
-  job.proposals = prop ? prop[1].toLowerCase() : null;
+  // "Less than 5" (public job page) and "Fewer than 5" (logged-in feed, verified 2026-10-04) are the same bucket.
+  const prop = raw.match(/Proposals:?\s*\n?\s*(Less than 5|Fewer than 5|5 to 10|10 to 15|15 to 20|20 to 50|50\+)/i);
+  job.proposals = prop ? prop[1].toLowerCase().replace('fewer', 'less') : null;
   job.proposalsMid = job.proposals ? PROPOSAL_BUCKETS[job.proposals]?.mid ?? null : null;
   const lv = raw.match(/Last viewed by client:?\s*\n?\s*([^\n]+)/i);
   job.lastViewed = lv ? lv[1].trim() : null;
@@ -114,7 +115,7 @@ export function parseJobText(read) {
   // Proposal page (verified 2026-10-04): "When you submit this proposal, you'll have 32 Connects
   // remaining." — that's AFTER paying, so the balance now is that + the cost.
   const after = raw.match(/you'?ll have\s*(\d+)\s*Connects?\s*remaining/i);
-  const ca = first(raw, /Available Connects:?\s*(\d+)/i, /You have\s*(\d+)\s*Connects?/i);
+  const ca = first(raw, /Available Connects:?\s*(\d+)/i, /You have\s*(\d+)\s*Connects?/i, /^\s*Connects:\s*(\d+)\s*$/im);   // last: the feed sidebar's "Connects: 46" (verified)
   job.connectsBalance = after ? Number(after[1]) + (job.connects || 0) : ca ? Number(ca[1]) : null;
   // Your own profile rate, shown on the proposal page ("Your profile rate: $30.00/hr").
   const pr = raw.match(/Your profile rate:?\s*\$([\d,]+(?:\.\d+)?)/i);
@@ -129,10 +130,10 @@ export function parseJobText(read) {
   client.paymentVerified = /Payment method not verified|Payment (method )?unverified/i.test(clientText) ? false
     : /Payment method verified|Payment verified/i.test(clientText) ? true : null;
   const rate = first(clientText, /Rating is ([\d.]+) out of 5/i, /^([0-5](?:\.\d+)?)\s*(?:of|\()\s*\d+\s*reviews?/im);
-  client.rating = rate ? n(rate[1]) : null;
+  client.rating = rate && n(rate[1]) > 0 ? n(rate[1]) : null;   // "Rating is 0 out of 5." = no reviews yet, not a 0 rating (verified on the feed)
   const rev = clientText.match(/(?:of\s+|\()?(\d+)\s+reviews?/i);
   client.reviews = rev ? Number(rev[1]) : null;
-  const sp = clientText.match(/\$([\d,.]+)\s*([KkMm])?\+?\s*total spent/i);
+  const sp = clientText.match(/\$([\d,.]+)\s*([KkMm])?\+?\s*(?:total\s+)?spent/i);   // "$48K total spent" or the feed's "$1K+ spent"
   client.totalSpent = sp ? money(sp[1], sp[2]) : null;
   const hires = clientText.match(/(\d+)\s+hires?\b/i);
   client.hires = hires ? Number(hires[1]) : null;

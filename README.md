@@ -6,7 +6,7 @@ your own AI key writes the cover letter, the screening-question answers, the rat
 duration. On the proposal page it can **fill the form for you**. You review it and click
 **Submit** yourself.
 
-**Version:** 0.1.2
+**Version:** 0.1.3
 
 > **What it deliberately does not do.** It doesn't watch the job feed, run searches, refresh
 > pages, work in the background or submit anything. Upwork's
@@ -140,6 +140,7 @@ demo data.
 
 | Version | Date | Highlights |
 |---|---|---|
+| 0.1.3 | 2026-10-05 | Real Upwork wording from a feed capture: "Proposals: Fewer than 5" now counts as the least-competition bucket; a client with "Rating is 0 out of 5" (no reviews yet) is no longer penalised as badly rated; "$1K+ spent" is read; "Less than 1 week" and "Connects: 46" are recognised. |
 | 0.1.2 | 2026-10-05 | Tuned to a real proposal-page capture: correct job title, brief and category when you go straight to *Apply*; correct Connects balance; your profile rate is used when Settings has none; **the "Boost your proposal" Connects bid can never be filled** (refused in the page too). |
 | 0.1.1 | 2026-10-05 | Fix "OpenRouter: Missing Authentication header": API keys are checked when you save or test (a Gemini key in the OpenRouter field, or a pasted "Bearer " prefix, is caught next to the field), a wrong-kind key is never sent, rejected keys get a plain explanation, and the key fields can no longer be autofilled by Chrome's password manager. |
 | 0.1.0 | 2026-10-04 | First version. Assisted on-click workflow (no feed watching); job and client scoring with reasons; scam signals; filters as warnings; AI cover letter, screening answers, rate and duration; optional auto-fill of the proposal form (never submits); Jobs tab with outcome statuses; activity log; page snapshot for diagnostics. |

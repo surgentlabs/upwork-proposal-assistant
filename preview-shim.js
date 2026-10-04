@@ -51,7 +51,7 @@
   };
   window.chrome = {
     runtime: {
-      getManifest: () => ({ version: '0.1.2' }),
+      getManifest: () => ({ version: '0.1.3' }),
       sendMessage: async m => { const h = handlers[m.type]; return h ? { ok: true, result: await h(m) } : { ok: true, result: null }; },
       onMessage: { addListener: () => {} },
     },

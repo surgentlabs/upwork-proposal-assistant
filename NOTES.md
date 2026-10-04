@@ -1,5 +1,32 @@
 # Upwork Proposal Assistant — Design Notes (newest first)
 
+## v0.1.3 — Wording from a logged-in feed capture
+The user sent a snapshot of `/nx/find-work/most-recent`, the feed rather than a job page. That
+is correctly `kind: other`, so nothing is scored there. Saved, with neutral text, as
+`tests/fixtures/feed-tile-2026-10-04.txt`.
+
+**Verified tile layout:**
+- "Posted 4 minutes ago • Proposals: Fewer than 5";
+- the title;
+- "Hourly - Intermediate - Est. Time: Less than 1 week, Less than 30 hrs/week", or
+  "Fixed-price - Entry level - Est. Budget: $30";
+- the brief, then "Skills" with one skill per line;
+- "Payment verified", "Rating is 0 out of 5.", "$1K+ spent" and the country ("USA");
+- the sidebar's "Connects: 46".
+
+**Fixes:**
+- "Fewer than 5" maps to the `less than 5` bucket. Before, those jobs got no proposals score.
+- "Rating is 0 out of 5" now means unrated (`null`). Before, it scored −6 as "client rated 0".
+- "$1K+ spent" without "total" is read as spend.
+- "Less than 1 week" is a project length.
+- "Connects: 46" is used as a last-resort balance.
+
+**Not built (proposed to the user):** scoring every visible tile on the feed when you click the
+icon there. It would be one read of the page you opened, with no extra requests and no polling.
+
+**Still needed:** a real single-job capture, either the job's own page (`/jobs/~…`) or the
+details panel. The panel may render outside `<main>`; if so, the reader needs to look there.
+
 ## v0.1.2 — First real capture: logged-in proposal page (hourly job, no screening questions)
 The user sent a v0.1.0 snapshot of `/nx/proposals/job/~…/apply/`. It's saved as
 `tests/fixtures/apply-real-2026-10-04.{txt,html}`, with the client's brief replaced by neutral

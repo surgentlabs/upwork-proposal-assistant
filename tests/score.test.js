@@ -54,3 +54,8 @@ test('skill overlap uses tags and whole words; age keeps counting from postedAt'
   const now = Date.now();
   assert.equal(currentAge({ postedAt: now - 90 * 60000 }, now), 90);
 });
+
+test('an unrated client (rating null) is not penalised', () => {
+  const s = scoreJob({ ...good, client: { ...good.client, rating: null, reviews: null } }, cfg);
+  assert.ok(!s.reasons.some(r => /rated/.test(r.text)));
+});

@@ -118,3 +118,16 @@ test('real proposal page (captured 2026-10-04): title, brief, category, Connects
   assert.equal(job.connectsBalance, 46);              // "you'll have 32 remaining" is after paying 14
   assert.equal(job.profileRate, 30);
 });
+
+test('real feed wording (captured 2026-10-04): "Fewer than 5", "$1K+ spent", rating 0 = unrated, "Connects: 46"', () => {
+  const job = parseJobText({ url: 'https://www.upwork.com/nx/find-work/most-recent', mainText: fx('feed-tile-2026-10-04.txt') });
+  assert.equal(job.proposals, 'less than 5');
+  assert.equal(job.proposalsMid, 2);
+  assert.equal(job.postedMinutesAgo, 4);
+  assert.equal(job.projectLength, 'Less than 1 week');
+  assert.equal(job.connectsBalance, 46);
+  assert.equal(job.client.paymentVerified, true);
+  assert.equal(job.client.totalSpent, 1000);
+  assert.equal(job.client.rating, null);
+  assert.equal(job.client.countryCode, 'US');
+});
