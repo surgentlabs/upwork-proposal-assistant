@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Upwork Proposal Assistant",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Reads the Upwork job you have open, scores it, drafts the cover letter and screening answers with your own AI key, and can fill them into the proposal form for you to review and submit.",
   "permissions": [
     "storage",

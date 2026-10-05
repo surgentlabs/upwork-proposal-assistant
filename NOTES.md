@@ -1,5 +1,52 @@
 # Upwork Proposal Assistant — Design Notes (newest first)
 
+## v0.2.3 — Job-details slide-over: it was reading the wrong job
+**Capture** (2026-10-05, v0.2.2): `/nx/find-work/best-matches/details/~…?…_modalInfo=[{"navType":"slider"…}]`.
+
+**What went wrong.** The slider renders **outside `<main>`**, and `<main>` holds the feed. As a
+result:
+
+- `mainText` contained only the feed, so the panel's Connects, interviewing and client card were
+  absent;
+- the title came out as "Upwork";
+- **the description came from the first `[data-test="Description"]` on the page**, which is the
+  first feed tile, not necessarily the job in the URL;
+- the parsed hourly range came from the *second* tile, and the payment, spend and country from the
+  first.
+
+So the score and the draft could describe a different job.
+
+**Fix (`pageAgent('read')` on `/details/~id`):**
+- **Tile helpers** (`idOf`, `jobLinks`, `idsIn`, `tileOf`) are shared with `feed`. The **tile
+  whose link carries the URL's id** gives the title, description and basics.
+- **Panel:**
+  1. a `[role="dialog"]` / `[aria-modal="true"]` element outside `<main>` whose text has job-detail
+     labels;
+  2. else the page text minus `<main>`'s text, but only if the feed text really is a substring
+     **and** the remainder has "About the client" / "Activity on this job" / "Skills and
+     Expertise" (the header and footer are outside `<main>` too);
+  3. else none.
+
+  The read returns `panelSource: dialog | outside-main | none`.
+- **Title:** the panel's heading, else the tile link text.
+- **Description:** the panel's (or outside-`<main>`) `Description` hook, else the tile's. Never a
+  document-wide first match.
+- **`readTab`** merges `parseFeedTile(tile)` with `parseJobText(panel)`. With
+  `panelSource: none` it logs a warning (feed card only, no client details or Connects).
+  Snapshots now include `panelSource` and `tile`.
+- **Still unverified:** which panel element Upwork uses. Fixtures cover all three paths. The next
+  details-panel snapshot will say which one fired.
+
+**Also from this capture (feed text, verified):**
+- **The hourly tile line** is "Hourly: $25-$47 - Expert - Est. Time: …" (no decimals, no spaces).
+  The existing pattern handles it; there's now a test.
+- **"Applied"** is a line just above a tile's "Posted …". It's recorded as `applied` and shown as a
+  pill in the feed list. `splitFeedText` moves it from the end of the previous block to the next.
+- **New scam rule:** "submit/send your resume|CV|portfolio … via/by email", which asks to apply
+  off Upwork. Ordinary "test email delivery" doesn't trigger it.
+
+**Tests:** 59.
+
 ## v0.2.2 — Real hourly job page
 Captured 2026-10-05 with v0.2.0. Saved as `tests/fixtures/job-hourly-real-2026-10-05.txt` with a
 neutral brief and the client's history anonymised. The capture's missing level and leading

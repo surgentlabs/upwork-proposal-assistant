@@ -59,3 +59,8 @@ test('an unrated client (rating null) is not penalised', () => {
   const s = scoreJob({ ...good, client: { ...good.client, rating: null, reviews: null } }, cfg);
   assert.ok(!s.reasons.some(r => /rated/.test(r.text)));
 });
+
+test('asking for a resume by email is flagged; ordinary email mentions are not', () => {
+  assert.deepEqual(scamSignals({ title: '', description: 'Please submit your resume and relevant experience via email.' }), ['asks you to apply by email (off Upwork)']);
+  assert.deepEqual(scamSignals({ title: '', description: 'Set up contact forms and test email delivery.' }), []);
+});

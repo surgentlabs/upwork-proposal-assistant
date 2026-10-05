@@ -194,6 +194,24 @@ test('feed: every tile scored best-first in one read; no AI call, nothing stored
   assert.match(logText(), /Scored 3 jobs on the feed — best \d+: "Homepage redesign on an existing WooCommerce site" · 1 with scam signals/);
 });
 
+test('details panel: stored under the panel job\'s id with its own title and brief; feed-card-only read warns', async () => {
+  reset();
+  setPage(makePage(fx('details-dialog.html'), 'https://www.upwork.com/nx/find-work/best-matches/details/~022107000000000000bbb?pageTitle=Job%20Details'));
+  const r = await message({ type: 'ASSIST', tabId: 7 });
+  assert.equal(r.result.kind, 'job');
+  const job = store.jobs['~022107000000000000bbb'];
+  assert.equal(job.title, 'Developer for website creation');
+  assert.match(job.description, /^Build a functional site for our business, with a booking form\./);
+  assert.equal(job.connects, 12);
+  assert.equal(store.jobs['~022107000000000000aaa'], undefined);
+  reset();
+  setPage(makePage(fx('details-none.html'), 'https://www.upwork.com/nx/find-work/best-matches/details/~022107000000000000bbb'));
+  await message({ type: 'ASSIST', tabId: 7 });
+  assert.equal(store.jobs['~022107000000000000bbb'].title, 'Developer for website creation');
+  await settle();
+  assert.match(logText(), /\[warn\] Read the job from its feed card only/);
+});
+
 test('auto-fill off: the proposal page is read, nothing drafted or filled', async () => {
   reset({ autoFill: false }); const page = makePage(fx('apply-page.html'), APPLY_URL); setPage(page);
   const r = await message({ type: 'ASSIST', tabId: 7 });

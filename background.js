@@ -56,7 +56,10 @@ export async function readTab(tabId) {
 
   const cfg = await getConfig();
   const now = Date.now();
-  const parsed = parseJobText(read);
+  // Details panel over the feed: the job's own feed tile first, then whatever the panel shows on top.
+  const parsed = read.tile ? mergeJob(parseFeedTile(read.tile), parseJobText(read)) : parseJobText(read);
+  if (read.panelSource === 'none' && read.tile) log('Read the job from its feed card only — the details panel text wasn\'t found. Open the job in its own page for client details and Connects.', 'warn');
+  if (read.panelSource && !read.tile && !read.mainText) return { kind: 'other', url: read.url, reason: 'no_job' };
   const form = kind === 'apply' ? classifyFields(read.fields) : null;
   const job = await updateJob(id, old => {
     const fresh = { ...parsed };
@@ -216,7 +219,7 @@ export async function scoreFeed(tabId, read) {
       jobType: job.jobType, budget: job.budget, hourlyMin: job.hourlyMin, hourlyMax: job.hourlyMax, experience: job.experience,
       projectLength: job.projectLength, proposals: job.proposals, postedAt: job.postedAt ?? null, postedMinutesAgo: job.postedMinutesAgo,
       client: { paymentVerified: c.paymentVerified, totalSpent: c.totalSpent, rating: c.rating, country: c.country },
-      score: scoreJob(job, cfg, now), status: id ? jobs[id]?.status || null : null,
+      score: scoreJob(job, cfg, now), status: id ? jobs[id]?.status || null : null, applied: !!job.applied,
     };
   }).sort((a, b) => b.score.score - a.score.score);
   if (items.length) log(`Scored ${items.length} job${items.length === 1 ? '' : 's'} on the feed — best ${items[0].score.score}: "${items[0].title}"${items.filter(i => i.score.scams.length).length ? ` · ${items.filter(i => i.score.scams.length).length} with scam signals` : ''}`);
@@ -235,7 +238,8 @@ export async function snapshot(tabId) {
     title: read.title, hasDescriptionHook: !!read.description,
     fields: read.fields.map(({ value, ...f }) => f),
     classified: classifyFields(read.fields),
-    parsed: isUpwork(read.url) && !isFeedUrl(read.url) ? parseJobText(read) : null,
+    parsed: isUpwork(read.url) && !isFeedUrl(read.url) ? (read.tile ? mergeJob(parseFeedTile(read.tile), parseJobText(read)) : parseJobText(read)) : null,
+    panelSource: read.panelSource, tile: read.tile,
     feed: isFeedUrl(read.url) ? (await runAgent(tabId, 'feed'))?.tiles?.slice(0, 5).map(t => ({ ...t, parsed: parseFeedTile(t) })) : undefined,
     mainText: read.mainText,
   };

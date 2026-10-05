@@ -222,3 +222,13 @@ test('alpha-3 countries are uppercase-exact; words that look like codes are not 
   assert.equal(isCountryExcluded({ country: 'Australia', countryCode: 'AU' }, ['aus']), true);
   assert.equal(isCountryExcluded({ country: 'Austria', countryCode: 'AT' }, ['aus']), false);
 });
+
+test('real feed formats (captured 2026-10-05): "Hourly: $25-$47", and "Applied" belongs to the next tile', async () => {
+  const { splitFeedText, parseFeedTile } = await import('../shared/parse.js');
+  const text = 'Filters\nPosted 3 hours ago\n•\nProposals: 50+\nMigration job\nHourly - Intermediate - Est. Time: Less than 1 week, Less than 30 hrs/week\nMove a site.\nSkills\nWix\nVerified\nPayment verified\nRating is 5.0 out of 5.\n $3K+ spent \n  United States\nApplied\nPosted 3 hours ago\n•\nProposals: 15 to 20\nEditor fix\nHourly: $25-$47 - Expert - Est. Time: Less than 1 month, Less than 30 hrs/week\nRestore the Text tab.\nSkills\nWordPress\nVerified\nPayment verified\nRating is 5.0 out of 5.\n $400+ spent \n  United States\nLoad More Jobs';
+  const [a, b] = splitFeedText(text).map(parseFeedTile);
+  assert.equal(a.applied, null);
+  assert.equal(b.applied, true);
+  assert.deepEqual([b.title, b.jobType, b.hourlyMin, b.hourlyMax, b.experience, b.projectLength, b.client.totalSpent], ['Editor fix', 'hourly', 25, 47, 'expert', 'Less than 1 month', 400]);
+  assert.equal(a.client.rating, 5);
+});

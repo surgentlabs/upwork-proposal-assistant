@@ -156,7 +156,7 @@ function renderFeed(r) {
           <div class="score ${scoreClass(i.score.score)}" style="min-width:36px;height:36px;font-size:14px;border-radius:8px">${i.score.score}</div>
           <div class="grow">
             ${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="font-weight:600">${esc(i.title)}</a>` : `<strong>${esc(i.title)}</strong>`}
-            ${i.status ? ` <span class="pill ${esc(i.status)}">${esc(STATUS_LABEL[i.status] || i.status)}</span>` : ''}
+            ${i.status ? ` <span class="pill ${esc(i.status)}">${esc(STATUS_LABEL[i.status] || i.status)}</span>` : i.applied ? ' <span class="pill">Applied</span>' : ''}
             <div class="meta">${esc([pay(i), age(i), i.proposals && `${i.proposals} proposals`, client(i.client)].filter(Boolean).join(' · '))}</div>
             ${i.score.scams.length ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(i.score.scams.join('; '))}</div>` : ''}
             ${i.score.misses.length ? `<div class="small" style="color:var(--warn);margin-top:3px">Outside filters: ${esc(i.score.misses.join(', '))}</div>` : ''}

@@ -2,7 +2,7 @@
 // the tab YOU opened, only when you open the popup (activeTab). It must stay self-contained:
 // executeScript serialises the function, so nothing outside its body is in scope.
 //
-//   pageAgent('read')            → { url, title, description, mainText, fields[], blocked }
+//   pageAgent('read')            → { url, title, description, mainText, fields[], blocked }  (+ tile, panelSource on /details/~id)
 //   pageAgent('fill', { items }) → { results[] }   items: [{ index, label, value, overwrite }]
 //   pageAgent('feed')            → { url, tiles[] }   the job tiles already on a feed / search page
 //
@@ -59,6 +59,19 @@ export function pageAgent(action, payload) {
     }
     return !el.disabled && !el.readOnly && !isHidden(el);
   });
+  // Job links and tiles (feed / search pages). A tile is the largest ancestor of a job link that
+  // contains links to that one job only — structure-agnostic, no class names.
+  const idOf = h => { const m = String(h || '').match(/~(0[0-9a-z]{9,})/i); return m ? m[1].toLowerCase() : null; };
+  const jobLinks = el => [...el.querySelectorAll('a[href*="~0"]')].filter(a => idOf(a.getAttribute('href')) && /\/jobs\/|\/details\/|\/apply\//i.test(a.getAttribute('href')));
+  const idsIn = el => new Set(jobLinks(el).map(a => idOf(a.getAttribute('href'))));
+  const tileOf = a => {
+    const id = idOf(a.getAttribute('href'));
+    let node = a;
+    while (node.parentElement && node.parentElement !== document.body && idsIn(node.parentElement).size <= 1) node = node.parentElement;
+    const desc = node.querySelector('[data-test="Description"], [data-test*="job-description" i], [data-test*="JobDescription" i]');
+    return { id: `~${id}`, href: new URL(a.getAttribute('href'), location.href).href, title: clean(textOf(a)), text: textOf(node).slice(0, 6000), description: textOf(desc).trim().slice(0, 4000) };
+  };
+
   const describe = (el, index) => ({
     index,
     kind: el.tagName === 'TEXTAREA' ? 'textarea' : el.tagName === 'INPUT' ? 'input' : 'rich',
@@ -80,7 +93,43 @@ export function pageAgent(action, payload) {
         /verify you are human|checking your browser|unusual activity|are you a robot|captcha/.test(shortPage) ||
         document.querySelector('iframe[src*="captcha" i], iframe[src*="challenge" i], #challenge-form')) blocked = 'challenge';
     else if (/\/account-security\/login|^\/login\b/.test(location.pathname) || /log in to upwork/.test(shortPage)) blocked = 'login';
-    const descEl = document.querySelector('[data-test="Description"], [data-test="job-description-text"], [data-test="description"]');
+    const DESC = '[data-test="Description"], [data-test="job-description-text"], [data-test="description"]';
+    // Job-details slide-over on the feed (/nx/find-work/…/details/~id — verified 2026-10-05): the
+    // panel renders OUTSIDE <main>, which holds the feed. Never take "the first description on the
+    // page" there — it belongs to another job. Read the panel (a dialog outside <main>, else the
+    // page text minus the feed) plus the feed tile whose link has this job's id.
+    const detailId = (location.pathname.match(/\/details\/~(0[0-9a-z]{9,})/i) || [])[1];
+    if (detailId) {
+      const id = detailId.toLowerCase();
+      const main = document.querySelector('main');
+      const panel = [...document.querySelectorAll('[role="dialog"], [aria-modal="true"]')]
+        .find(el => !(main && (main.contains(el) || el.contains(main))) && /About the client|Activity on this job|Skills and Expertise|Apply now/i.test(textOf(el)));
+      const PANEL_RE = /About the client|Activity on this job|Skills and Expertise/i;
+      let panelText = '';
+      if (panel) panelText = textOf(panel);
+      else if (main) {
+        // Page text minus the feed — only if the feed text really came out, and only if what's left
+        // looks like job details (the site header and footer are outside <main> too).
+        const mt = textOf(main);
+        const rest = mt && bodyText.includes(mt) ? bodyText.replace(mt, '\n') : '';
+        if (PANEL_RE.test(rest)) panelText = rest;
+      }
+      const outsideDesc = [...document.querySelectorAll(DESC)].find(el => !(main && main.contains(el)));
+      const link = jobLinks(document).find(a => idOf(a.getAttribute('href')) === id);
+      const tile = link ? tileOf(link) : null;
+      const ph = panel && panel.querySelector('h1, h2, h3, h4, [data-test="job-title"]');
+      return {
+        url: location.href,
+        title: clean(textOf(ph)) || tile?.title || '',
+        description: (textOf(panel ? panel.querySelector(DESC) : outsideDesc).trim() || tile?.description || '').slice(0, 12000),
+        mainText: panelText.slice(0, 40000),
+        fields: fieldEls().map(describe),
+        blocked,
+        tile,
+        panelSource: panel ? 'dialog' : panelText ? 'outside-main' : 'none',
+      };
+    }
+    const descEl = document.querySelector(DESC);
     const h1 = document.querySelector('h1, [data-test="job-title"]');
     return {
       url: location.href,
@@ -132,19 +181,13 @@ export function pageAgent(action, payload) {
   // contains links to that one job only — structure-agnostic, no class names. Reads what's
   // already on the page; never clicks "Load More Jobs".
   if (action === 'feed') {
-    const idOf = h => { const m = String(h || '').match(/~(0[0-9a-z]{9,})/i); return m ? m[1].toLowerCase() : null; };
-    const jobLinks = el => [...el.querySelectorAll('a[href*="~0"]')].filter(a => idOf(a.getAttribute('href')) && /\/jobs\/|\/details\/|\/apply\//i.test(a.getAttribute('href')));
-    const idsIn = el => new Set(jobLinks(el).map(a => idOf(a.getAttribute('href'))));
     const seen = new Set();
     const tiles = [];
     for (const a of jobLinks(document)) {
       const id = idOf(a.getAttribute('href'));
       if (seen.has(id)) continue;
       seen.add(id);
-      let node = a;
-      while (node.parentElement && node.parentElement !== document.body && idsIn(node.parentElement).size <= 1) node = node.parentElement;
-      const desc = node.querySelector('[data-test="Description"], [data-test*="job-description" i], [data-test*="JobDescription" i]');
-      tiles.push({ id: `~${id}`, href: new URL(a.getAttribute('href'), location.href).href, title: clean(textOf(a)), text: textOf(node).slice(0, 6000), description: textOf(desc).trim().slice(0, 4000) });
+      tiles.push(tileOf(a));
       if (tiles.length >= 60) break;
     }
     return { url: location.href, tiles };

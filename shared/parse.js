@@ -210,7 +210,11 @@ export function splitFeedText(text) {
   return starts.map((s, k) => {
     const block = ls.slice(s, starts[k + 1] ?? ls.length);
     const end = block.findIndex(l => /^\s*Load More Jobs\s*$/i.test(l));
-    const body = (end >= 0 ? block.slice(0, end) : block).join('\n');
+    const kept = end >= 0 ? block.slice(0, end) : block;
+    // The "Applied" label sits just above a tile's "Posted …" line, so it ends the PREVIOUS block.
+    if (/^\s*Applied\s*$/i.test(kept[kept.length - 1] || '')) kept.pop();
+    if (s > 0 && /^\s*Applied\s*$/i.test(ls[s - 1])) kept.unshift('Applied');
+    const body = kept.join('\n');
     const t = lines(body);
     const pi = t.findIndex(l => /^Proposals:/i.test(l));
     return { id: null, href: null, title: pi >= 0 ? t[pi + 1] || '' : '', text: body, description: '' };
@@ -243,6 +247,7 @@ export function parseFeedTile(tile) {
       job.description = out.join('\n');
     }
   }
+  job.applied = ls.some(l => /^Applied$/i.test(l)) || null;   // feed label on jobs you've applied to (verified 2026-10-05)
   if (!job.skills.length) {
     const i = ls.findIndex(l => /^Skills$/i.test(l));
     if (i >= 0) {

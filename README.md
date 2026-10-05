@@ -6,7 +6,7 @@ your own AI key writes the cover letter, the screening-question answers, the rat
 duration. On the proposal page it can **fill the form for you**. You review it and click
 **Submit** yourself.
 
-**Version:** 0.2.2
+**Version:** 0.2.3
 
 > **What it deliberately does not do.** It doesn't watch the job feed, run searches, refresh
 > pages, work in the background or submit anything. Upwork's
@@ -28,6 +28,7 @@ duration. On the proposal page it can **fill the form for you**. You review it a
   - any scam signals or filter misses;
   - its status, if you've already worked on it.
 - **Hide misses** filters out jobs outside your filters or with scam signals.
+- **Details panel:** clicking the icon while a job's slide-over panel is open reads that job only (its card on the feed plus the panel), never the other jobs behind it.
 
 ### On a job page
 - **Score (0–100) with every point explained.** It weighs payment verification, client spend,
@@ -160,6 +161,7 @@ demo data.
 
 | Version | Date | Highlights |
 |---|---|---|
+| 0.2.3 | 2026-10-05 | **Fix: the job-details slide-over on the feed could mix up jobs.** The panel sits outside the part of the page that was read, so the title, description and some facts came from other jobs' cards. It now reads only the job in the URL: its own feed card plus the panel. Feed rows show **Applied**. New scam signal: "submit your resume via email". |
 | 0.2.2 | 2026-10-05 | Checked against a real hourly job page: three-letter country codes ("AUS") are recognised, so country filters work for those clients; the AI is told about attachments it can't see; client total hours and company size are recorded. |
 | 0.2.1 | 2026-10-05 | Checked against a real logged-in job page: the experience level is now read ("Expert — I am willing to pay higher rates…"), the "Summary" heading no longer starts the brief, and "Phone number verified" is recorded for the client. |
 | 0.2.0 | 2026-10-05 | **Feed scoring:** click the icon on the job feed to rank every visible job, best first, in one read (nothing loaded or refreshed). Fixed-price jobs: the single milestone's amount and description are filled. The "you don't meet the client's preferred qualifications" banner is shown and scored. The proposal page's cut-off brief no longer replaces the full one. |

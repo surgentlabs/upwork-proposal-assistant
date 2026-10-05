@@ -26,6 +26,7 @@ const SCAM_RULES = [
   [/\bfree (test|sample|trial)( work| task)?\b|unpaid (test|trial|sample)|(test|trial) (task|work) (is )?unpaid|work for free/i, 'asks for free work'],
   [/\b(crypto(currency)? (payment|wallet)|usdt|pay (you )?in (btc|bitcoin|crypto))\b/i, 'wants to pay in crypto'],
   [/[\w.+-]+@[\w-]+\.(com|net|org|io|co)\b/i, 'includes an email address to contact'],
+  [/\b(submit|send|email)\s+(us\s+|me\s+)?(your\s+)?(resume|cv|portfolio)\b[^.\n]{0,40}\b(via|by|through|over)\s+e-?mail/i, 'asks you to apply by email (off Upwork)'],
 ];
 
 export function scamSignals(job) {

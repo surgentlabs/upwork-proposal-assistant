@@ -138,3 +138,28 @@ test('feed: one tile per job, read-only — "Load More Jobs" is never clicked', 
   assert.ok(!tiles[2].text.includes('Connects: 46'));
   assert.equal(page.clicks.length, 0);
 });
+
+test('details panel over the feed: scoped to the job in the URL — never the first tile on the page', async () => {
+  const { parseJobText, parseFeedTile, mergeJob } = await import('../shared/parse.js');
+  const URL_B = 'https://www.upwork.com/nx/find-work/best-matches/details/~022107000000000000bbb?pageTitle=Job%20Details';
+  for (const [file, source] of [['details-dialog.html', 'dialog'], ['details-outside.html', 'outside-main']]) {
+    const page = makePage(fx(file), URL_B);
+    const read = page.run(pageAgent, ['read', null]);
+    assert.equal(read.panelSource, source, file);
+    assert.equal(read.title, 'Developer for website creation', file);
+    assert.match(read.description, /booking form/, file);
+    assert.ok(!/Kadence|photography/.test(read.mainText), `${file}: feed text leaked into the panel`);
+    assert.equal(read.tile.id, '~022107000000000000bbb');
+    const job = mergeJob(parseFeedTile(read.tile), parseJobText(read));
+    assert.deepEqual([job.hourlyMin, job.hourlyMax, job.proposals, job.connects, job.client.paymentVerified, job.client.hireRate, job.client.countryCode, job.applied],
+      [25, 47, 'less than 5', 12, false, 0, 'IN', true], file);
+  }
+  // No panel text at all: the job's own tile still gives the basics (and nothing from tile A).
+  const page = makePage(fx('details-none.html'), URL_B);
+  const read = page.run(pageAgent, ['read', null]);
+  assert.equal(read.panelSource, 'none');
+  assert.equal(read.mainText, '');
+  const job = mergeJob(parseFeedTile(read.tile), parseJobText(read));
+  assert.deepEqual([job.title, job.hourlyMax, job.client.paymentVerified, job.client.countryCode], ['Developer for website creation', 47, false, 'IN']);
+  assert.match(job.description, /^Build a functional site/);
+});
