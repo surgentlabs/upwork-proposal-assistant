@@ -232,3 +232,14 @@ test('real feed formats (captured 2026-10-05): "Hourly: $25-$47", and "Applied" 
   assert.deepEqual([b.title, b.jobType, b.hourlyMin, b.hourlyMax, b.experience, b.projectLength, b.client.totalSpent], ['Editor fix', 'hourly', 25, 47, 'expert', 'Less than 1 month', 400]);
   assert.equal(a.client.rating, 5);
 });
+
+test('real details panel (captured 2026-10-05): unnumbered screening questions on the job page, 1 review, card description cleaned', async () => {
+  const { parseFeedTile } = await import('../shared/parse.js');
+  const job = parseJobText({ url: 'https://www.upwork.com/nx/find-work/best-matches/details/~022107205290997219776', title: 'WordPress specialist for a marketing agency site', mainText: fx('panel-real-2026-10-05.txt') });
+  assert.deepEqual(job.questions, ['Share two relevant B2B service-business websites you have worked on.', 'Review our website and our three offerings. What are your three highest-priority website improvements?', 'How will you set up and test GA4/GTM to track lead sources?']);
+  assert.deepEqual([job.jobType, job.budget, job.experience, job.proposals, job.connects, job.connectsBalance], ['fixed', 300, 'expert', 'less than 5', 14, 22]);
+  assert.deepEqual([job.client.rating, job.client.reviews, job.client.hireRate, job.client.totalSpent, job.client.countryCode], [5, 1, 23, 510, 'CA']);
+  assert.deepEqual(job.skills, ['WordPress', 'Web Development', 'Google Ads']);
+  const t = parseFeedTile({ title: 'X', text: 'Posted 9 minutes ago\nProposals: Fewer than 5\nX\nFixed-price - Expert - Est. Budget: $300\nBrief.', description: 'Improve the site (separate budget).\nless\n, about "X"' });
+  assert.equal(t.description, 'Improve the site (separate budget).');
+});

@@ -228,7 +228,10 @@ export function parseFeedTile(tile) {
   const ls = lines(String(tile.text || ''));
   let title = tile.title;
   if (!title) { const pi = ls.findIndex(l => /^Proposals:/i.test(l)); title = pi >= 0 ? ls[pi + 1] : ''; }
-  const job = parseJobText({ url: tile.href, title, mainText: tile.text, description: tile.description });
+  // The card's description element ends with its toggle and an a11y label (verified 2026-10-05):
+  // "…budget).\nless\n, about \"<title>\"" — not part of the brief.
+  const description = String(tile.description || '').replace(/\n\s*(less|more)\s*(\n\s*,?\s*about\s+"[^"]*")?\s*$/i, '').trim();
+  const job = parseJobText({ url: tile.href, title, mainText: tile.text, description });
   const tl = ls.find(l => /^(Hourly|Fixed[- ]price)\b.*\s-\s/i.test(l));
   if (tl) {
     job.jobType = /^hourly/i.test(tl) ? 'hourly' : 'fixed';

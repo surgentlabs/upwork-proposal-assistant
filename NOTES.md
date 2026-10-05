@@ -1,5 +1,36 @@
 # Upwork Proposal Assistant — Design Notes (newest first)
 
+## v0.2.4 — Live details panel confirmed; "don't claim you opened their link"
+**Capture** (2026-10-05, v0.2.3, details panel open): **`panelSource: "dialog"`**. The slider is
+a `[role="dialog"]` / `[aria-modal]` outside `<main>`, and the v0.2.3 path works on the live site.
+
+The panel's text matches the job-page layout:
+- a "Go Back" / "Open job in a new window" header;
+- **screening questions listed under "You will be asked to answer the following questions when
+  submitting a proposal:"**, one per line, **unnumbered**. This is now verified: `sectionLines`
+  stops at "Skills and Expertise", and five questions were parsed correctly;
+- "5.00 of 1 review" (singular);
+- "Other open jobs by this Client (1)", which is cut.
+
+Saved as `tests/fixtures/panel-real-2026-10-05.txt`, neutralised.
+
+**Fixes:**
+- **Feed-card description:** the card's description element ends with `\nless\n, about "<title>"`
+  (the toggle plus an a11y label). `parseFeedTile` strips it.
+- **No pretending to have looked.** A question here asked the freelancer to "Review website <url>
+  and our three offerings…". The prompt now says the AI has **not** opened any website, link,
+  document or file the client mentions. It must never write as if it had, and should say what it
+  would check first or use a `[placeholder]`.
+
+**Tests:** 61.
+
+**Now verified on real pages:** job page (fixed and hourly), details panel, proposal page (hourly,
+fixed with milestones, with a screening question) and the feed text.
+
+**Still unverified:** the feed tiles' DOM via `pageAgent('feed')`. The same tile algorithm worked
+for the panel's own tile here, which is good evidence. Also unverified: whether the masked
+rate/amount inputs register programmatic values (check that "You'll receive" updates).
+
 ## v0.2.3 — Job-details slide-over: it was reading the wrong job
 **Capture** (2026-10-05, v0.2.2): `/nx/find-work/best-matches/details/~…?…_modalInfo=[{"navType":"slider"…}]`.
 

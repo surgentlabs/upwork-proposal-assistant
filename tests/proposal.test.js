@@ -86,3 +86,8 @@ test('attachments the AI cannot see are flagged in the prompt', () => {
   assert.match(p, /attached 1 file that you have NOT seen/);
   assert.ok(!buildPrompt({ title: 'T', description: 'D' }, cfg, { rate: 45, unit: 'hourly' }, []).includes('NOT seen'));
 });
+
+test('the AI is told it has not opened any link or site the client mentions', () => {
+  const p = buildPrompt({ title: 'T', description: 'Review our website example.com' }, cfg, { rate: 45, unit: 'hourly' }, ['Review our website. What would you improve?']);
+  assert.match(p, /You have NOT opened any website, link, document or file/);
+});

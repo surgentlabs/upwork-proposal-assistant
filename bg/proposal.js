@@ -96,6 +96,7 @@ export function buildPrompt(job, cfg, { rate, unit }, questions, rnd = Math.rand
     `- Never use: ${BANNED.map(b => `"${b}"`).join(', ')}.`,
     '- Write in the same language as the brief. Whole-number amounts only. Write durations correctly: "1 day", "3 days", "1 week".',
     '- Cover letter length: 110 to 190 words.',
+    '- You have NOT opened any website, link, document or file the client mentions. Never write as if you had reviewed it ("I looked at your site and…"). Say what you would check first instead, or use a [placeholder] for the freelancer to fill in after looking.',
     '- When something only the real freelancer can supply is needed (a link to past work, a specific past project, exact availability), write a short placeholder in square brackets, e.g. [link to a similar project]. Never invent it.',
     questions.length
       ? `SCREENING QUESTIONS — Upwork asks these in separate fields. Answer each one separately, directly and specifically to this job, in 1–4 sentences, in the same voice. No greeting, don't repeat the question, don't refer to the cover letter:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`

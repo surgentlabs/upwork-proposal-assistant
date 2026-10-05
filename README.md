@@ -6,7 +6,7 @@ your own AI key writes the cover letter, the screening-question answers, the rat
 duration. On the proposal page it can **fill the form for you**. You review it and click
 **Submit** yourself.
 
-**Version:** 0.2.3
+**Version:** 0.2.4
 
 > **What it deliberately does not do.** It doesn't watch the job feed, run searches, refresh
 > pages, work in the background or submit anything. Upwork's
@@ -80,7 +80,7 @@ duration. On the proposal page it can **fill the form for you**. You review it a
 - **Voice:** human, no buzzwords, no exclamation marks, no sign-off, in the same language as the
   brief, 110–190 words.
 - **Honesty guard:** no invented clients, links, certifications, years of experience or
-  statistics.
+  statistics, and no claims to have reviewed a website, link or file the client mentions.
 - If the AI is unavailable or no key is set, it falls back to a template with clearly marked
   gaps.
 
@@ -161,6 +161,7 @@ demo data.
 
 | Version | Date | Highlights |
 |---|---|---|
+| 0.2.4 | 2026-10-05 | Confirmed on a live details panel (the v0.2.3 fix works). The AI is told it hasn't opened any website or link the client mentions, so it won't claim to have reviewed them. Feed cards' descriptions no longer end in "less, about …". |
 | 0.2.3 | 2026-10-05 | **Fix: the job-details slide-over on the feed could mix up jobs.** The panel sits outside the part of the page that was read, so the title, description and some facts came from other jobs' cards. It now reads only the job in the URL: its own feed card plus the panel. Feed rows show **Applied**. New scam signal: "submit your resume via email". |
 | 0.2.2 | 2026-10-05 | Checked against a real hourly job page: three-letter country codes ("AUS") are recognised, so country filters work for those clients; the AI is told about attachments it can't see; client total hours and company size are recorded. |
 | 0.2.1 | 2026-10-05 | Checked against a real logged-in job page: the experience level is now read ("Expert — I am willing to pay higher rates…"), the "Summary" heading no longer starts the brief, and "Phone number verified" is recorded for the client. |
