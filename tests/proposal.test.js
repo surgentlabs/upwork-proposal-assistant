@@ -80,3 +80,9 @@ test('hourly rate falls back to the profile rate shown on the proposal page', ()
   assert.deepEqual(decideRate({ jobType: 'hourly', profileRate: 30 }, { ...cfg, hourlyRate: 0 }), { rate: 30, unit: 'hourly' });
   assert.deepEqual(decideRate({ jobType: 'hourly', profileRate: 30 }, cfg), { rate: 45, unit: 'hourly' });   // Settings wins
 });
+
+test('attachments the AI cannot see are flagged in the prompt', () => {
+  const p = buildPrompt({ title: 'T', description: 'D', attachments: 1, jobType: 'hourly' }, cfg, { rate: 45, unit: 'hourly' }, []);
+  assert.match(p, /attached 1 file that you have NOT seen/);
+  assert.ok(!buildPrompt({ title: 'T', description: 'D' }, cfg, { rate: 45, unit: 'hourly' }, []).includes('NOT seen'));
+});

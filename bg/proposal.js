@@ -79,6 +79,7 @@ export function buildPrompt(job, cfg, { rate, unit }, questions, rnd = Math.rand
     `Client's brief:\n${brief}`,
     `Budget: ${budget}`,
     job.projectLength ? `Expected length: ${job.projectLength}` : '',
+    job.attachments ? `The client attached ${job.attachments} file${job.attachments === 1 ? '' : 's'} that you have NOT seen. Don't describe or rely on their contents; at most, say you'll review ${job.attachments === 1 ? 'it' : 'them'}.` : '',
     job.descriptionTruncated ? 'Note: the brief above is cut short (only its start was visible). Work with what is there; do not guess at the missing part.' : '',
     job.experience ? `Experience level wanted: ${job.experience}` : '',
     priceLine,

@@ -1,5 +1,73 @@
 # Upwork Proposal Assistant — Design Notes (newest first)
 
+## v0.2.2 — Real hourly job page
+Captured 2026-10-05 with v0.2.0. Saved as `tests/fixtures/job-hourly-real-2026-10-05.txt` with a
+neutral brief and the client's history anonymised. The capture's missing level and leading
+"Summary" were already fixed in v0.2.1; this fixture confirms both ("Intermediate" / "I am
+looking for a mix of experience and value").
+
+**Verified:**
+- the hourly range split over lines (`$10.00` / `-` / `$25.00` / `Hourly`), parsed by the
+  existing `\s*` patterns;
+- `Less than 30 hrs/week` / `Hourly` / `Less than 1 month` / `Duration`;
+- "Attachment" followed by "<file> (134 KB)";
+- "Upgrade your membership to see the bid range";
+- client: "AUS", "Clayton11:16 AM", "$10.11 /hr avg hourly rate paid", "470 hours", "Tech & IT",
+  "Small company (2-9 people)".
+
+**Fixes:**
+- **Country codes:** Upwork shows the client country as a name ("United States"), an alpha-3
+  code ("AUS" here, "USA" on the feed) or both, depending on the page. `shared/countries.js` now
+  carries alpha-3 codes and official names, generated from pycountry and covering all 249 rows.
+  - `countryFromLines` matches names case-insensitively but alpha-3 **only as an exact uppercase
+    line**, so "Can", "And" or "Per" on their own aren't countries.
+  - Country excludes accept alpha-3 too ("AUS" excludes Australia, not Austria).
+- **Attachments:** `job.attachments` counts "(… KB/MB)" lines. The prompt tells the AI it has NOT
+  seen them and may at most say it will review them.
+- **`client.totalHours` and `client.companySize`:** recorded for the model, not scored.
+
+**Tests:** 55.
+
+## v0.2.1 — Real logged-in job page (before Apply)
+Captured 2026-10-05 at `/jobs/~…?referrer_url_path=/best-matches/details/~…` (the job's own
+page). Saved as `tests/fixtures/job-real-2026-10-05.txt` with a neutral brief and the client's
+history anonymised.
+
+**Now verified** (the v0.1.0 "assumed" list, apart from what's noted below):
+- the title in `<h1>`; `[data-test="Description"]` present, starting with its own "Summary"
+  heading;
+- "Posted 4 minutes ago";
+- `$200.00` / `Fixed-price`;
+- the level line followed by its blurb ("Expert" / "I am willing to pay higher rates for the
+  most experienced freelancers");
+- "Skills and Expertise" with one skill per line;
+- "Preferred qualifications" (empty here);
+- "Activity on this job": `Proposals:` `Less than 5`, `Interviewing:`, `Invites sent:`,
+  `Unanswered invites:`;
+- "Send a proposal for: 14 Connects", "Available Connects: 46";
+- "About the client":
+  - "Payment method verified", "Phone number verified";
+  - "Rating is 5.0 out of 5." and "5.00 of 6 reviews";
+  - the country, then city + local time ("Las Vegas5:12 PM", no space);
+  - "6 jobs posted", "67% hire rate, 1 open job", "$5.9K total spent", "10 hires, 3 active";
+  - "Member since Jun 11, 2024";
+- "Client's recent history (9)", with other freelancers' names, reviews and ratings. It's cut by
+  the existing marker; a test checks a 3.0 history rating can't become the client's rating.
+
+**Fixes:**
+- **Experience:** recognised from the level line plus its "I am looking for / willing to pay…"
+  blurb. Before, it was `null` on job pages.
+- **Brief:** the leading "Summary" heading is stripped from the description.
+- **`client.phoneVerified`:** recorded, not yet scored; it's a feature for the model.
+
+**Still unverified:**
+- **Hourly jobs on the job page:** the range line (assumed `$40.00 - $60.00` / `Hourly`).
+- **Clients who pay hourly:** "avg hourly rate paid".
+- **Screening questions listed on the job page:** "You will be asked to answer…". This job had
+  none, though the proposal page's question fields are verified.
+- **Feed tiles' DOM:** the link and ancestor structure.
+- **The job-details slide-over panel.**
+
 ## v0.2.0 — Feed scoring; fixed-price milestones; qualifications banner
 **Feed scoring** (user asked for it after we explained the risk was the same as reading a job
 page):

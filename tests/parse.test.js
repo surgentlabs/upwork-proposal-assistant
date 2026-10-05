@@ -172,3 +172,53 @@ test('feed: tiles parsed from the verified tile layout; text-split fallback; fee
   assert.equal(f.client.totalSpent, 0);
   assert.equal(f.client.countryCode, 'IN');
 });
+
+test('real job page before Apply (captured 2026-10-05): everything the scorer and prompt need', async () => {
+  const { extractBriefQuestions } = await import('../bg/proposal.js');
+  const text = fx('job-real-2026-10-05.txt');
+  const descEl = text.slice(text.indexOf('Summary'), text.indexOf('\n$200.00'));   // what [data-test="Description"] holds
+  const job = parseJobText({ url: 'https://www.upwork.com/jobs/~022106899113107183365?referrer_url_path=%2Fbest-matches%2Fdetails%2F~022106899113107183365', title: 'GeoDirectory + Elementor Pro expert to fix an events website', mainText: text, description: descEl });
+  assert.equal(job.id, '~022106899113107183365');
+  assert.equal(job.postedMinutesAgo, 4);
+  assert.equal(job.jobType, 'fixed');
+  assert.equal(job.budget, 200);
+  assert.equal(job.experience, 'expert');
+  assert.equal(job.proposals, 'less than 5');
+  assert.equal(job.interviewing, 0);
+  assert.equal(job.invitesSent, 0);
+  assert.equal(job.connects, 14);
+  assert.equal(job.connectsBalance, 46);
+  assert.deepEqual(job.skills, ['Elementor', 'Custom Web Design', 'Geodirectory', 'WordPress']);
+  assert.match(job.description, /^I'm building an events site/);                      // "Summary" heading stripped
+  assert.ok(!/To freelancer|past job/.test(job.description));
+  const c = job.client;
+  assert.deepEqual([c.paymentVerified, c.phoneVerified, c.rating, c.reviews, c.totalSpent, c.hires, c.hireRate, c.openJobs, c.jobsPosted, c.country, c.memberSince],
+    [true, true, 5, 6, 5900, 10, 67, 1, 6, 'United States', 'Jun 11, 2024']);
+  assert.deepEqual(extractBriefQuestions(job.description), ['Please include examples of GeoDirectory websites you have worked on and briefly explain your experience integrating GeoDirectory with Elementor.']);
+  // Client history (other freelancers' reviews, 3.0 ratings) never leaks into the client card.
+  assert.equal(parseJobText({ url: '', mainText: text.replace('Rating is 5.0 out of 5.\n5.0\n5.00 of 6 reviews\n', '') }).client.rating, null);
+});
+
+test('real hourly job page (captured 2026-10-05): split range, level blurb, AUS, attachments, client extras', () => {
+  const text = fx('job-hourly-real-2026-10-05.txt');
+  const job = parseJobText({ url: 'https://www.upwork.com/jobs/Virus-removal-website_~022106883383762540293/?referrer_url_path=find_work_home', title: 'Malware cleanup on several websites', mainText: text, description: text.slice(text.indexOf('Summary'), text.indexOf('\nLess than 30 hrs/week')) });
+  assert.deepEqual([job.jobType, job.hourlyMin, job.hourlyMax, job.experience, job.projectLength, job.hoursPerWeek], ['hourly', 10, 25, 'intermediate', 'Less than 1 month', 'Less than 30 hrs/week']);
+  assert.deepEqual([job.proposals, job.lastViewed, job.interviewing, job.connects, job.connectsBalance, job.attachments], ['20 to 50', '13 minutes ago', 1, 14, 46, 1]);
+  assert.match(job.description, /^Several client websites/);
+  const c = job.client;
+  assert.deepEqual([c.country, c.countryCode, c.hireRate, c.hires, c.totalSpent, c.avgHourlyPaid, c.totalHours, c.companySize, c.reviews, c.memberSince],
+    ['AUS', 'AU', 100, 11, 6600, 10.11, 470, 'Small company (2-9 people)', 7, 'May 2, 2025']);
+});
+
+test('alpha-3 countries are uppercase-exact; words that look like codes are not countries', async () => {
+  const { countryFromLines } = await import('../shared/parse.js');
+  const { isCountryExcluded } = await import('../shared/score.js');
+  assert.deepEqual(countryFromLines(['AUS']), { code: 'AU', name: 'AUS' });
+  assert.deepEqual(countryFromLines(['USA']), { code: 'US', name: 'USA' });
+  assert.deepEqual(countryFromLines(['GBR']), { code: 'GB', name: 'GBR' });
+  assert.equal(countryFromLines(['Can', 'And', 'per']), null);
+  assert.deepEqual(countryFromLines(['australia']), { code: 'AU', name: 'australia' });
+  assert.equal(isCountryExcluded({ country: 'AUS', countryCode: 'AU' }, ['Australia']), true);
+  assert.equal(isCountryExcluded({ country: 'Australia', countryCode: 'AU' }, ['aus']), true);
+  assert.equal(isCountryExcluded({ country: 'Austria', countryCode: 'AT' }, ['aus']), false);
+});

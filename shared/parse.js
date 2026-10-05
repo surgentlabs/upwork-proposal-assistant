@@ -46,12 +46,20 @@ export function parsePostedMinutes(t) {
   return Math.round(q * per);
 }
 
+// A whole line that is a country name (any case) or an UPPERCASE alpha-3 code ("AUS", "USA" —
+// verified on job pages and the feed). Alpha-3 codes are case-sensitive because "Can", "And" or
+// "Per" on a line of their own are words, not Canada, Andorra or Peru.
 export function countryFromLines(ls) {
-  const byName = new Map();
-  for (const [code, ...names] of COUNTRIES) for (const nm of names) byName.set(nm.toLowerCase(), { code, name: names[0] === nm ? nm : names[0] });
+  const byName = new Map(), byA3 = new Map();
+  for (const [code, ...names] of COUNTRIES) {
+    for (const nm of names) {
+      if (/^[A-Z]{3}$/.test(nm) && nm !== 'USA') byA3.set(nm, code);
+      else byName.set(nm.toLowerCase(), code);
+    }
+  }
   for (const l of ls) {
-    const hit = byName.get(l.toLowerCase());
-    if (hit) return { code: hit.code, name: l };
+    const code = byName.get(l.toLowerCase()) || byA3.get(l);
+    if (code) return { code, name: l };
   }
   return null;
 }
@@ -88,7 +96,10 @@ export function parseJobText(read) {
   job.budget = job.jobType === 'fixed' && fixedM ? n(fixedM[1]) : null;
   job.hourlyMin = hourlyM ? n(hourlyM[1]) : null;
   job.hourlyMax = hourlyM ? n(hourlyM[2]) : null;
-  const exp = first(raw, /(Entry level|Intermediate|Expert)\s*\n\s*Experience level/i, /Experience level:?\s*\n?\s*(Entry level|Intermediate|Expert)/i);
+  // Job page (verified 2026-10-05): "Expert\nI am willing to pay higher rates…" (Entry level: "…lowest
+  // rates", Intermediate: "…a mix of experience and value"). Proposal page / public: "…\nExperience level".
+  const exp = first(raw, /(Entry level|Intermediate|Expert)\s*\n\s*Experience level/i, /Experience level:?\s*\n?\s*(Entry level|Intermediate|Expert)/i,
+    /^(Entry level|Intermediate|Expert)\s*\n\s*I am (?:looking for|willing to pay)/im);
   job.experience = exp ? exp[1].toLowerCase().replace(' level', '') : null;
   const dur = first(raw, /(Less than (?:1|a) week|Less than (?:1|a) month|1 to 3 months|1-3 months|3 to 6 months|3-6 months|More than 6 months)/i);
   job.projectLength = dur ? dur[1].replace('-', ' to ').replace(/less than a (month|week)/i, 'Less than 1 $1') : null;
@@ -129,6 +140,12 @@ export function parseJobText(read) {
   const client = {};
   client.paymentVerified = /Payment method not verified|Payment (method )?unverified/i.test(clientText) ? false
     : /Payment method verified|Payment verified/i.test(clientText) ? true : null;
+  client.phoneVerified = /Phone number verified/i.test(clientText) || null;   // verified label, 2026-10-05
+  // Hourly-paying clients (verified 2026-10-05): "470 hours", "Tech & IT", "Small company (2-9 people)".
+  const th = clientText.match(/^([\d,]+)\s+hours?$/im);
+  client.totalHours = th ? n(th[1]) : null;
+  const cs = clientText.match(/^((?:Individual client|Small company|Mid-sized company|Large company)[^\n]*)$/im);
+  client.companySize = cs ? cs[1].trim() : null;
   const rate = first(clientText, /Rating is ([\d.]+) out of 5/i, /^([0-5](?:\.\d+)?)\s*(?:of|\()\s*\d+\s*reviews?/im);
   client.rating = rate && n(rate[1]) > 0 ? n(rate[1]) : null;   // "Rating is 0 out of 5." = no reviews yet, not a 0 rating (verified on the feed)
   const rev = clientText.match(/(?:of\s+|\()?(\d+)\s+reviews?/i);
@@ -165,9 +182,12 @@ export function parseJobText(read) {
     if (!job.title || /^submit a proposal$/i.test(job.title)) job.title = jd.title;
     job.category = jd.category;
   }
-  job.description = (read?.description || '').trim() || jd?.description || descriptionFallback(ls);
+  // The job page's description element starts with its own "Summary" heading (verified 2026-10-05).
+  job.description = ((read?.description || '').trim().replace(/^Summary\s*\n+/i, '')) || jd?.description || descriptionFallback(ls);
   job.descriptionTruncated = !!jd?.truncated;   // the proposal page shows only the start of the brief ("… more")
   job.featured = /^Featured Job$/im.test(raw) || null;
+  // "Attachment\nScreenshot 2026-10-05 094539.png (134 KB)" (verified) — the AI can't see these.
+  job.attachments = ls.filter(l => /\((\d+(?:\.\d+)?)\s*(KB|MB|GB|bytes)\)$/i.test(l)).length || null;
   // Proposal page banner (verified 2026-10-04): "You do not meet all the client's preferred
   // qualifications … the proposal does not meet the following criteria:\n\nLocation: Americas, Asia\nClose the alert"
   const qm = raw.match(/does not meet the following criteria:\s*\n([\s\S]*?)\n\s*(?:Close the alert|Proposal settings)/i);

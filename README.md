@@ -6,7 +6,7 @@ your own AI key writes the cover letter, the screening-question answers, the rat
 duration. On the proposal page it can **fill the form for you**. You review it and click
 **Submit** yourself.
 
-**Version:** 0.2.0
+**Version:** 0.2.2
 
 > **What it deliberately does not do.** It doesn't watch the job feed, run searches, refresh
 > pages, work in the background or submit anything. Upwork's
@@ -160,6 +160,8 @@ demo data.
 
 | Version | Date | Highlights |
 |---|---|---|
+| 0.2.2 | 2026-10-05 | Checked against a real hourly job page: three-letter country codes ("AUS") are recognised, so country filters work for those clients; the AI is told about attachments it can't see; client total hours and company size are recorded. |
+| 0.2.1 | 2026-10-05 | Checked against a real logged-in job page: the experience level is now read ("Expert — I am willing to pay higher rates…"), the "Summary" heading no longer starts the brief, and "Phone number verified" is recorded for the client. |
 | 0.2.0 | 2026-10-05 | **Feed scoring:** click the icon on the job feed to rank every visible job, best first, in one read (nothing loaded or refreshed). Fixed-price jobs: the single milestone's amount and description are filled. The "you don't meet the client's preferred qualifications" banner is shown and scored. The proposal page's cut-off brief no longer replaces the full one. |
 | 0.1.3 | 2026-10-05 | Real Upwork wording from a feed capture: "Proposals: Fewer than 5" now counts as the least-competition bucket; a client with "Rating is 0 out of 5" (no reviews yet) is no longer penalised as badly rated; "$1K+ spent" is read; "Less than 1 week" and "Connects: 46" are recognised. |
 | 0.1.2 | 2026-10-05 | Tuned to a real proposal-page capture: correct job title, brief and category when you go straight to *Apply*; correct Connects balance; your profile rate is used when Settings has none; **the "Boost your proposal" Connects bid can never be filled** (refused in the page too). |
